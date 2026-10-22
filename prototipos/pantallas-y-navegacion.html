@@ -1,0 +1,452 @@
+<!doctype html>
+<!--
+  PROTOTIPO — desechable. No es código de la app.
+  Pregunta: ¿qué pantallas tiene la app y cómo se pasa de una a otra?
+  Tres variantes de toda la app en este único archivo, switchables con ?variant=A|B|C,
+  la barra flotante de abajo o las flechas ← →. Estado solo en memoria: recargar lo reinicia.
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PROTOTIPO — Pantallas y navegación</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, sans-serif; color: #1d232b; background: #f4f5f7; padding-bottom: 90px; }
+  h1, h2, h3 { margin: 0 0 8px; }
+  h2 { font-size: 17px; }
+  button { font: inherit; cursor: pointer; border: 1px solid #c9ced6; background: #fff; border-radius: 6px; padding: 4px 10px; }
+  button.primary { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+  button.danger { color: #b42318; border-color: #f0b4ae; }
+  button.link { border: 0; background: none; padding: 0 3px; color: #2b6cb0; }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+  input, select { font: inherit; padding: 5px 8px; border: 1px solid #c9ced6; border-radius: 6px; background: #fff; }
+  input.big { font-size: 28px; width: 100%; }
+  .pos { color: #18794e; } .neg { color: #b42318; } .muted { color: #6b7380; } .small { font-size: 12px; }
+  .chip { display: inline-flex; gap: 2px; align-items: center; border: 1px solid #c9ced6; border-radius: 999px; padding: 2px 10px; background: #fff; margin: 2px; }
+  .pick input { display: none; }
+  .pick span { display: inline-block; border: 1px solid #c9ced6; border-radius: 999px; padding: 3px 11px; margin: 2px; background: #fff; cursor: pointer; }
+  .pick input:checked + span { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+  .f { display: block; margin: 0 0 12px; }
+  .f > input, .f > select { display: block; width: 100%; margin-top: 3px; }
+  .actions { display: flex; gap: 8px; margin-top: 8px; }
+  .actions .danger { margin-left: auto; }
+  .proto-banner { background: #fff3c4; color: #6b4e00; text-align: center; font-size: 12px; padding: 3px; }
+
+  /* ---------- Variante A: página única ---------- */
+  .a-wrap { max-width: 860px; margin: 0 auto; padding: 16px; }
+  .a-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 0 16px; border-bottom: 2px solid #1d232b; margin-bottom: 16px; }
+  .a-sel { font-size: 22px; font-weight: 700; border: 0; background: none; padding: 0; }
+  .a-wrap section { background: #fff; border: 1px solid #e1e4e8; border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+  .a-form { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; align-items: end; background: #f4f8fd; padding: 10px; border-radius: 6px; margin-bottom: 10px; }
+  .a-form .wide { grid-column: 1 / -1; }
+  .a-form .f { margin: 0; }
+  .a-row { display: flex; gap: 10px; align-items: center; padding: 8px 4px; border-top: 1px solid #eef0f2; }
+  .a-row .grow { flex: 1; }
+  .a-bal { display: grid; grid-template-columns: 110px 1fr 110px; align-items: center; gap: 8px; margin: 4px 0; }
+  .a-bar { position: relative; height: 14px; background: #f1f2f4; border-radius: 3px; }
+  .a-bar i { position: absolute; top: 0; bottom: 0; }
+  .a-bar::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; border-left: 1px solid #9aa1ab; }
+  .a-liq li { margin: 4px 0; font-size: 16px; }
+
+  /* ---------- Variante B: móvil, lista de Grupos y pestañas ---------- */
+  .b-phone { position: relative; max-width: 400px; min-height: 720px; margin: 20px auto; background: #fff; border: 10px solid #1d232b; border-radius: 28px; overflow: hidden; }
+  .b-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px; background: #2b6cb0; color: #fff; }
+  .b-bar button { background: none; border: 0; color: #fff; font-size: 16px; }
+  .b-tabs { display: flex; border-bottom: 1px solid #e1e4e8; }
+  .b-tabs button { flex: 1; border: 0; border-radius: 0; background: none; padding: 10px 2px; font-size: 13px; border-bottom: 3px solid transparent; }
+  .b-tabs button.on { border-bottom-color: #2b6cb0; font-weight: 700; }
+  .b-row { display: flex; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #eef0f2; cursor: pointer; }
+  .b-row:hover { background: #f7f9fb; }
+  .b-fab { position: absolute; right: 18px; bottom: 18px; width: 56px; height: 56px; border-radius: 50%; border: 0; background: #2b6cb0; color: #fff; font-size: 28px; box-shadow: 0 3px 10px rgba(0,0,0,.3); }
+  .b-back { position: absolute; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: flex-end; }
+  .b-sheet { background: #fff; width: 100%; border-radius: 16px 16px 0 0; padding: 18px; max-height: 90%; overflow: auto; }
+  .b-card { margin: 12px 14px; padding: 14px; border: 1px solid #e1e4e8; border-radius: 10px; }
+  .b-card .amt { font-size: 24px; font-weight: 700; }
+  .b-empty { padding: 30px 20px; text-align: center; }
+
+  /* ---------- Variante C: escritorio en tres columnas ---------- */
+  .c-grid { display: grid; grid-template-columns: 220px 1fr 330px; min-height: calc(100vh - 20px); }
+  .c-side { background: #1d232b; color: #e6e8eb; padding: 16px; }
+  .c-side button.g { display: block; width: 100%; text-align: left; background: none; border: 0; color: #c4c9d0; padding: 6px 8px; border-radius: 6px; }
+  .c-side button.g.on { background: #2b6cb0; color: #fff; }
+  .c-main { padding: 20px 24px; }
+  .c-right { background: #fff; border-left: 1px solid #e1e4e8; padding: 20px; }
+  .c-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  table.c-t { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e1e4e8; }
+  .c-t th, .c-t td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eef0f2; }
+  .c-t td.num, .c-t th.num { text-align: right; }
+  .c-t tbody tr { cursor: pointer; } .c-t tbody tr:hover { background: #f4f8fd; }
+  .c-t tbody tr.on { background: #e3eefa; }
+  .c-liq { display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 6px 8px; align-items: center; }
+  .c-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 380px; background: #fff; box-shadow: -6px 0 24px rgba(0,0,0,.18); padding: 20px; overflow: auto; z-index: 10; }
+
+  /* ---------- Barra del prototipo (no forma parte del diseño) ---------- */
+  #proto-bar { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; background: #111; color: #fff; border-radius: 999px; padding: 6px 10px; box-shadow: 0 4px 18px rgba(0,0,0,.4); z-index: 1000; font-size: 14px; white-space: nowrap; }
+  #proto-bar button { background: #333; color: #fff; border: 0; border-radius: 999px; padding: 4px 12px; }
+  #proto-state { position: fixed; bottom: 64px; left: 16px; width: 440px; max-height: 60vh; overflow: auto; background: #111; color: #9fe8c8; font: 11px/1.35 monospace; padding: 10px; border-radius: 8px; z-index: 1000; white-space: pre; }
+</style>
+</head>
+<body>
+<div class="proto-banner">PROTOTIPO — desechable · datos solo en memoria</div>
+<div id="app"></div>
+<pre id="proto-state" hidden></pre>
+<div id="proto-bar"></div>
+<script>
+// ---------- Datos de ejemplo (en memoria) ----------
+let uid = 100;
+const nid = () => 'x' + uid++;
+let clock = 10;
+const state = {
+  currentId: 'g1',
+  groups: [
+    { id: 'g1', name: 'Viaje a Asturias', currency: 'EUR', lastOpened: 3,
+      participants: [{ id: 'a', name: 'Ana' }, { id: 'b', name: 'Bruno' }, { id: 'c', name: 'Carla' }, { id: 'd', name: 'David' }],
+      expenses: [
+        { id: 'e1', concept: 'Gasolina', amount: 8400, payerId: 'b', among: ['a', 'b', 'c', 'd'] },
+        { id: 'e2', concept: 'Casa rural', amount: 36000, payerId: 'a', among: ['a', 'b', 'c', 'd'] },
+        { id: 'e3', concept: 'Cena en Cangas', amount: 9735, payerId: 'c', among: ['a', 'b', 'c'] },
+        { id: 'e4', concept: 'Sidra', amount: 2310, payerId: 'd', among: ['a', 'b', 'c', 'd'] },
+      ] },
+    { id: 'g2', name: 'Cumpleaños de Lucía', currency: 'EUR', lastOpened: 2,
+      participants: [{ id: 'l', name: 'Lucía' }, { id: 'm', name: 'Marcos' }, { id: 'n', name: 'Nerea' }],
+      expenses: [
+        { id: 'e5', concept: 'Restaurante', amount: 12600, payerId: 'm', among: ['m', 'n'] },
+        { id: 'e6', concept: 'Tarta', amount: 3000, payerId: 'n', among: ['m', 'n'] },
+      ] },
+    { id: 'g3', name: 'Piso en Londres', currency: 'GBP', lastOpened: 1,
+      participants: [{ id: 'p', name: 'Ana' }, { id: 't', name: 'Tom' }], expenses: [] },
+  ],
+};
+
+// ---------- Lógica de reparto (la de las Notas del Proyecto) ----------
+const grp = () => state.groups.find(g => g.id === state.currentId);
+const byRecent = () => [...state.groups].sort((x, y) => y.lastOpened - x.lastOpened);
+const byName = () => [...state.groups].sort((x, y) => x.name.localeCompare(y.name, 'es'));
+const pname = (g, id) => (g.participants.find(p => p.id === id) || {}).name || '?';
+const used = (g, id) => g.expenses.some(e => e.payerId === id || e.among.includes(id));
+const total = g => g.expenses.reduce((s, e) => s + e.amount, 0);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function money(c, cur) {
+  try { return new Intl.NumberFormat('es-ES', { style: 'currency', currency: cur }).format(c / 100); }
+  catch { return (c / 100).toFixed(2) + ' ' + cur; }
+}
+const toInput = c => (c / 100).toFixed(2).replace('.', ',');
+function parseAmount(s) {
+  const n = Math.round(parseFloat(String(s).trim().replace(',', '.')) * 100);
+  return n > 0 ? n : null;
+}
+function shares(e) {
+  const n = e.among.length, base = Math.floor(e.amount / n), rem = e.amount % n, m = {};
+  e.among.forEach((id, i) => { m[id] = base + (i < rem ? 1 : 0); });
+  return m;
+}
+function balances(g) {
+  const b = {};
+  g.participants.forEach(p => { b[p.id] = 0; });
+  g.expenses.forEach(e => {
+    b[e.payerId] += e.amount;
+    const s = shares(e);
+    for (const id in s) b[id] -= s[id];
+  });
+  return b;
+}
+function settle(g) {
+  const b = balances(g), deb = [], cred = [], out = [];
+  for (const id in b) { if (b[id] < 0) deb.push({ id, v: -b[id] }); else if (b[id] > 0) cred.push({ id, v: b[id] }); }
+  while (deb.length && cred.length) {
+    deb.sort((x, y) => y.v - x.v); cred.sort((x, y) => y.v - x.v);
+    const d = deb[0], c = cred[0], v = Math.min(d.v, c.v);
+    out.push({ from: d.id, to: c.id, amount: v });
+    d.v -= v; c.v -= v;
+    if (!d.v) deb.shift();
+    if (!c.v) cred.shift();
+  }
+  return out;
+}
+const amongText = (g, e) => e.among.length === g.participants.length ? 'entre todos' : 'entre ' + e.among.map(id => pname(g, id)).join(', ');
+const liqText = g => g.name + ' — Liquidación\n' + (settle(g).map(t => `${pname(g, t.from)} paga ${money(t.amount, g.currency)} a ${pname(g, t.to)}`).join('\n') || 'Todo cuadrado');
+
+// ---------- Estado de la interfaz y acciones (compartidos por las variantes) ----------
+let ui = {};
+const resetUi = () => { ui = { screen: 'group', tab: 'gastos', groupForm: null, expenseForm: null, participantForm: null, copied: false }; };
+resetUi();
+let showState = false;
+
+const act = {
+  noop() {},
+  prev() { setVariant(-1); },
+  next() { setVariant(1); },
+  toggleState() { showState = !showState; },
+  openGroup(id) {
+    if (id === '__new') { ui.groupForm = 'new'; return; }
+    state.currentId = id; grp().lastOpened = ++clock;
+    ui.screen = 'group'; ui.tab = 'gastos'; act.close();
+  },
+  toList() { ui.screen = 'list'; act.close(); },
+  tab(t) { ui.tab = t; },
+  newGroup() { act.close(); ui.groupForm = 'new'; },
+  editGroup() { act.close(); ui.groupForm = state.currentId; },
+  deleteGroup() {
+    const g = grp();
+    if (!confirm(`¿Borrar el Grupo «${g.name}» con sus ${g.participants.length} Participantes y ${g.expenses.length} Gastos? No se puede deshacer.`)) return;
+    state.groups = state.groups.filter(x => x !== g);
+    const r = byRecent()[0];
+    state.currentId = r ? r.id : null;
+    act.close();
+    if (variant === 'B') ui.screen = 'list';
+  },
+  newExpense() { act.close(); ui.expenseForm = 'new'; },
+  editExpense(id) { act.close(); ui.expenseForm = id; },
+  deleteExpense(id) {
+    const g = grp(), e = g.expenses.find(x => x.id === id);
+    if (!confirm(`¿Borrar el Gasto «${e.concept}» (${money(e.amount, g.currency)})?`)) return;
+    g.expenses = g.expenses.filter(x => x !== e);
+    act.close();
+  },
+  newParticipant() { act.close(); ui.participantForm = 'new'; },
+  editParticipant(id) { act.close(); ui.participantForm = id; },
+  deleteParticipant(id) {
+    const g = grp();
+    if (used(g, id)) { alert('Aparece en algún Gasto: solo se le puede cambiar el nombre.'); return; }
+    if (!confirm(`¿Borrar a ${pname(g, id)}?`)) return;
+    g.participants = g.participants.filter(p => p.id !== id);
+    act.close();
+  },
+  close() { ui.groupForm = ui.expenseForm = ui.participantForm = null; },
+  copyLiq() { if (navigator.clipboard) navigator.clipboard.writeText(liqText(grp())); ui.copied = true; },
+};
+
+const save = {
+  group(fd) {
+    const name = fd.get('name').trim(), cur = fd.get('currency').trim().toUpperCase(), id = fd.get('id');
+    if (!name) { alert('Falta el nombre del Grupo.'); return false; }
+    if (!/^[A-Z]{3}$/.test(cur)) { alert('Moneda no válida: usa un código de tres letras, como EUR, USD o GBP.'); return false; }
+    if (id === 'new') {
+      const g = { id: nid(), name, currency: cur, lastOpened: 0, participants: [], expenses: [] };
+      state.groups.push(g);
+      act.openGroup(g.id);
+      if (variant === 'B') ui.tab = 'participantes';
+    } else {
+      const g = state.groups.find(x => x.id === id);
+      g.name = name; g.currency = cur;
+    }
+    ui.groupForm = null;
+  },
+  participant(fd) {
+    const g = grp(), name = fd.get('name').trim(), id = fd.get('id');
+    if (!name) { alert('Falta el nombre.'); return false; }
+    if (id === 'new') g.participants.push({ id: nid(), name });
+    else g.participants.find(p => p.id === id).name = name;
+    ui.participantForm = null;
+  },
+  expense(fd) {
+    const g = grp(), id = fd.get('id');
+    const concept = fd.get('concept').trim(), amount = parseAmount(fd.get('amount')), payerId = fd.get('payer');
+    const checked = fd.getAll('among');
+    const among = g.participants.map(p => p.id).filter(pid => checked.includes(pid));
+    if (!concept) { alert('Falta el concepto.'); return false; }
+    if (!amount) { alert('El importe tiene que ser mayor que cero.'); return false; }
+    if (!payerId) { alert('Falta quién pagó.'); return false; }
+    if (!among.length) { alert('Marca al menos un Participante entre quienes se reparte.'); return false; }
+    if (id === 'new') g.expenses.push({ id: nid(), concept, amount, payerId, among });
+    else Object.assign(g.expenses.find(e => e.id === id), { concept, amount, payerId, among });
+    ui.expenseForm = null;
+  },
+};
+
+// ---------- Piezas de formulario (cada variante elige orden y colocación) ----------
+const btn = (a, arg, label, cls = '', extra = '') => `<button type="button" class="${cls}" data-act="${a}" data-arg="${arg}" ${extra}>${label}</button>`;
+const fConcept = e => `<label class="f">Concepto<input name="concept" value="${esc(e ? e.concept : '')}" placeholder="Cena, gasolina…"></label>`;
+const fAmount = (g, e, big) => `<label class="f">Importe (${g.currency})<input name="amount" inputmode="decimal" class="${big ? 'big' : ''}" value="${e ? toInput(e.amount) : ''}" placeholder="0,00"></label>`;
+const fPayerSelect = (g, e) => `<label class="f">Pagó<select name="payer"><option value="">¿Quién?</option>${g.participants.map(p => `<option value="${p.id}" ${e && e.payerId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>`;
+const fPayerChips = (g, e) => `<div class="f">Pagó<br>${g.participants.map((p, i) => `<label class="pick"><input type="radio" name="payer" value="${p.id}" ${(e ? e.payerId === p.id : i === 0) ? 'checked' : ''}><span>${esc(p.name)}</span></label>`).join('')}</div>`;
+const fAmong = (g, e) => `<div class="f">Entre quiénes <span class="muted small">(a partes iguales)</span><br>${g.participants.map(p => `<label class="pick"><input type="checkbox" name="among" value="${p.id}" ${!e || e.among.includes(p.id) ? 'checked' : ''}><span>${esc(p.name)}</span></label>`).join('')}</div>`;
+const hid = id => `<input type="hidden" name="id" value="${id}">`;
+const groupFields = g => `${hid(g ? g.id : 'new')}<label class="f">Nombre del Grupo<input name="name" value="${esc(g ? g.name : '')}" placeholder="Viaje, cena…"></label><label class="f">Moneda<input name="currency" value="${g ? g.currency : 'EUR'}" maxlength="3"></label>`;
+
+// ---------- Variante A — Página única ----------
+function renderA() {
+  const g = grp();
+  let h = '<div class="a-wrap"><header class="a-top">';
+  if (ui.groupForm) {
+    const eg = ui.groupForm === 'new' ? null : g;
+    h += `<form data-submit="group" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">${groupFields(eg)}<div class="actions"><button class="primary">${eg ? 'Guardar' : 'Crear Grupo'}</button>${btn('close', '', 'Cancelar')}</div></form>`;
+  } else {
+    h += `<select class="a-sel" data-change="openGroup">${byRecent().map(x => `<option value="${x.id}" ${g && x.id === g.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="__new">＋ Nuevo Grupo…</option></select>`;
+    if (g) h += `<span class="muted">${g.currency}</span><span style="flex:1"></span>${btn('editGroup', '', 'Editar Grupo')}${btn('deleteGroup', '', 'Borrar Grupo', 'danger')}`;
+    else h += btn('newGroup', '', '＋ Nuevo Grupo', 'primary');
+  }
+  h += '</header>';
+  if (!g) return h + '<p>No hay ningún Grupo todavía.</p></div>';
+
+  h += '<section><h2>Participantes</h2>';
+  h += g.participants.map(p => ui.participantForm === p.id
+    ? `<form data-submit="participant" class="chip">${hid(p.id)}<input name="name" value="${esc(p.name)}" size="8" autofocus><button class="link">✓</button>${btn('close', '', '✕', 'link')}</form>`
+    : `<span class="chip">${esc(p.name)}${btn('editParticipant', p.id, '✎', 'link', 'title="Cambiar nombre"')}${btn('deleteParticipant', p.id, '×', 'link', used(g, p.id) ? 'disabled title="Aparece en algún Gasto"' : 'title="Borrar"')}</span>`).join('');
+  h += ` <form data-submit="participant" style="display:inline-flex;gap:6px;margin-left:6px">${hid('new')}<input name="name" placeholder="Nombre" size="10"><button>Añadir</button></form></section>`;
+
+  h += `<section><h2>Gastos <span class="muted">· total ${money(total(g), g.currency)}</span></h2>`;
+  const expForm = (e) => `<form data-submit="expense" class="a-form">${hid(e ? e.id : 'new')}${fConcept(e)}${fAmount(g, e)}${fPayerSelect(g, e)}<div class="wide">${fAmong(g, e)}</div><div class="wide actions"><button class="primary">${e ? 'Guardar' : 'Añadir Gasto'}</button>${e ? btn('close', '', 'Cancelar') : ''}</div></form>`;
+  if (!g.participants.length) h += '<p class="muted">Añade Participantes arriba para poder apuntar Gastos.</p>';
+  else h += expForm(null);
+  h += [...g.expenses].reverse().map(e => ui.expenseForm === e.id ? expForm(e)
+    : `<div class="a-row"><div class="grow"><b>${esc(e.concept)}</b><div class="muted small">Pagó ${esc(pname(g, e.payerId))} · ${esc(amongText(g, e))}</div></div><b>${money(e.amount, g.currency)}</b>${btn('editExpense', e.id, '✎', 'link', 'title="Editar"')}${btn('deleteExpense', e.id, '🗑', 'link', 'title="Borrar"')}</div>`).join('');
+  h += '</section>';
+
+  const b = balances(g), max = Math.max(1, ...Object.values(b).map(Math.abs));
+  h += '<section><h2>Saldos</h2>' + g.participants.map(p => {
+    const v = b[p.id], w = Math.abs(v) / max * 50;
+    const bar = v >= 0 ? `left:50%;width:${w}%;background:#3fa36b` : `right:50%;width:${w}%;background:#d4574a`;
+    return `<div class="a-bal"><span>${esc(p.name)}</span><div class="a-bar"><i style="${bar}"></i></div><b class="${v > 0 ? 'pos' : v < 0 ? 'neg' : ''}" style="text-align:right">${v > 0 ? '+' : ''}${money(v, g.currency)}</b></div>`;
+  }).join('') + '</section>';
+
+  const t = settle(g);
+  h += '<section><h2>Liquidación</h2>' + (t.length
+    ? '<ol class="a-liq">' + t.map(x => `<li><b>${esc(pname(g, x.from))}</b> paga <b>${money(x.amount, g.currency)}</b> a <b>${esc(pname(g, x.to))}</b></li>`).join('') + '</ol>'
+    : '<p class="muted">Todo cuadrado: nadie debe nada.</p>') + '</section>';
+  return h + '</div>';
+}
+
+// ---------- Variante B — Móvil: lista de Grupos + pestañas ----------
+function renderB() {
+  const g = grp();
+  let h = '<div class="b-phone">';
+  if (ui.screen === 'list' || !g) {
+    h += '<div class="b-bar"><b>Grupos</b></div>';
+    h += byRecent().map((x, i) => `<div class="b-row" data-act="openGroup" data-arg="${x.id}"><div><b>${esc(x.name)}</b><div class="muted small">${x.participants.length} Participantes · ${x.expenses.length} Gastos${i === 0 ? ' · último abierto' : ''}</div></div><div>${money(total(x), x.currency)}</div></div>`).join('')
+      || '<div class="b-empty muted">Aún no hay Grupos.<br>Pulsa ＋ para crear el primero.</div>';
+    h += '<button type="button" class="b-fab" data-act="newGroup" title="Nuevo Grupo">＋</button>';
+  } else {
+    h += `<div class="b-bar">${btn('toList', '', '‹ Grupos')}<b>${esc(g.name)}</b>${btn('editGroup', '', '⋯', '', 'title="Ajustes del Grupo"')}</div>`;
+    const tabs = { gastos: 'Gastos', saldos: 'Saldos', liquidacion: 'Liquidación', participantes: 'Participantes' };
+    h += '<div class="b-tabs">' + Object.entries(tabs).map(([k, l]) => btn('tab', k, l, ui.tab === k ? 'on' : '')).join('') + '</div>';
+    if (ui.tab === 'gastos') {
+      if (!g.participants.length) h += `<div class="b-empty muted">Para apuntar Gastos, primero añade Participantes.<br><br>${btn('tab', 'participantes', 'Ir a Participantes', 'primary')}</div>`;
+      else {
+        h += `<div class="b-row" style="cursor:default"><span class="muted">Total</span><b>${money(total(g), g.currency)}</b></div>`;
+        h += [...g.expenses].reverse().map(e => `<div class="b-row" data-act="editExpense" data-arg="${e.id}"><div><b>${esc(e.concept)}</b><div class="muted small">Pagó ${esc(pname(g, e.payerId))} · ${esc(amongText(g, e))}</div></div><b>${money(e.amount, g.currency)}</b></div>`).join('')
+          || '<div class="b-empty muted">Sin Gastos. Pulsa ＋.</div>';
+        h += '<button type="button" class="b-fab" data-act="newExpense" title="Nuevo Gasto">＋</button>';
+      }
+    } else if (ui.tab === 'saldos') {
+      const b = balances(g);
+      h += g.participants.map(p => { const v = b[p.id]; return `<div class="b-row" style="cursor:default"><span>${esc(p.name)}<div class="muted small">${v > 0 ? 'le deben' : v < 0 ? 'debe' : 'en paz'}</div></span><b class="${v > 0 ? 'pos' : v < 0 ? 'neg' : ''}">${v > 0 ? '+' : ''}${money(v, g.currency)}</b></div>`; }).join('');
+    } else if (ui.tab === 'liquidacion') {
+      const t = settle(g);
+      h += t.length ? t.map((x, i) => `<div class="b-card"><div class="muted small">Transferencia ${i + 1} de ${t.length}</div><div class="amt">${money(x.amount, g.currency)}</div><div><b>${esc(pname(g, x.from))}</b> → <b>${esc(pname(g, x.to))}</b></div></div>`).join('')
+        + `<div style="padding:0 14px">${btn('copyLiq', '', ui.copied ? 'Copiado ✓' : 'Compartir como texto')}</div>`
+        : '<div class="b-empty muted">Todo cuadrado: nadie debe nada.</div>';
+    } else {
+      h += g.participants.map(p => `<div class="b-row" data-act="editParticipant" data-arg="${p.id}"><span>${esc(p.name)}</span><span class="muted small">${used(g, p.id) ? 'en Gastos' : ''} ›</span></div>`).join('')
+        || '<div class="b-empty muted">Sin Participantes. Pulsa ＋.</div>';
+      h += '<button type="button" class="b-fab" data-act="newParticipant" title="Nuevo Participante">＋</button>';
+    }
+  }
+  const sheet = inner => `<div class="b-back" data-act="close"><div class="b-sheet" data-act="noop">${inner}</div></div>`;
+  if (ui.groupForm) {
+    const eg = ui.groupForm === 'new' ? null : g;
+    h += sheet(`<h2>${eg ? 'Ajustes del Grupo' : 'Nuevo Grupo'}</h2><form data-submit="group">${groupFields(eg)}<div class="actions"><button class="primary">${eg ? 'Guardar' : 'Crear'}</button>${btn('close', '', 'Cancelar')}${eg ? btn('deleteGroup', '', 'Borrar Grupo', 'danger') : ''}</div></form>`);
+  } else if (ui.expenseForm) {
+    const e = ui.expenseForm === 'new' ? null : g.expenses.find(x => x.id === ui.expenseForm);
+    h += sheet(`<h2>${e ? 'Editar Gasto' : 'Nuevo Gasto'}</h2><form data-submit="expense">${hid(e ? e.id : 'new')}${fConcept(e)}${fAmount(g, e)}${fPayerChips(g, e)}${fAmong(g, e)}<div class="actions"><button class="primary">Guardar</button>${btn('close', '', 'Cancelar')}${e ? btn('deleteExpense', e.id, 'Borrar', 'danger') : ''}</div></form>`);
+  } else if (ui.participantForm) {
+    const p = ui.participantForm === 'new' ? null : g.participants.find(x => x.id === ui.participantForm);
+    h += sheet(`<h2>${p ? 'Participante' : 'Nuevo Participante'}</h2><form data-submit="participant">${hid(p ? p.id : 'new')}<label class="f">Nombre<input name="name" value="${esc(p ? p.name : '')}" autofocus></label><div class="actions"><button class="primary">Guardar</button>${btn('close', '', 'Cancelar')}${p ? btn('deleteParticipant', p.id, 'Borrar', 'danger', used(g, p.id) ? 'disabled title="Aparece en algún Gasto"' : '') : ''}</div>${p && used(g, p.id) ? '<p class="muted small">Aparece en algún Gasto: solo se puede cambiar el nombre.</p>' : ''}</form>`);
+  }
+  return h + '</div>';
+}
+
+// ---------- Variante C — Escritorio en tres columnas ----------
+function renderC() {
+  const g = grp();
+  let h = '<div class="c-grid"><aside class="c-side"><h3>Grupos</h3>';
+  h += byName().map(x => `<button type="button" class="g ${g && x.id === g.id ? 'on' : ''}" data-act="openGroup" data-arg="${x.id}">${esc(x.name)} <span class="small">${x.currency}</span></button>`).join('');
+  h += `<div style="margin-top:12px">${btn('newGroup', '', '＋ Nuevo Grupo')}</div></aside>`;
+  if (!g) return h + '<main class="c-main"><p>No hay ningún Grupo todavía.</p></main></div>' + drawerC(g);
+
+  h += `<main class="c-main"><div class="c-head"><h1>${esc(g.name)}</h1><span class="muted">${g.currency}</span>${btn('editGroup', '', 'Ajustes', 'link')}</div>`;
+  h += '<div style="margin-bottom:16px"><span class="muted">Participantes:</span> ' + g.participants.map(p => `<button type="button" class="chip" data-act="editParticipant" data-arg="${p.id}">${esc(p.name)}</button>`).join('') + ` ${btn('newParticipant', '', '＋ Participante', 'link')}</div>`;
+  h += `<div class="c-head"><h2>Gastos</h2><span style="flex:1"></span>${btn('newExpense', '', '＋ Nuevo Gasto', 'primary', g.participants.length ? '' : 'disabled title="Primero añade Participantes"')}</div>`;
+  h += '<table class="c-t"><thead><tr><th>Concepto</th><th>Pagó</th><th>Entre</th><th class="num">Importe</th></tr></thead><tbody>';
+  h += [...g.expenses].reverse().map(e => `<tr class="${ui.expenseForm === e.id ? 'on' : ''}" data-act="editExpense" data-arg="${e.id}"><td>${esc(e.concept)}</td><td>${esc(pname(g, e.payerId))}</td><td class="muted">${e.among.length === g.participants.length ? 'todos' : e.among.map(id => esc(pname(g, id))).join(', ')}</td><td class="num">${money(e.amount, g.currency)}</td></tr>`).join('')
+    || '<tr><td colspan="4" class="muted">Sin Gastos todavía.</td></tr>';
+  h += `</tbody><tfoot><tr><th colspan="3">Total</th><th class="num">${money(total(g), g.currency)}</th></tr></tfoot></table></main>`;
+
+  const b = balances(g), t = settle(g);
+  h += '<aside class="c-right"><h2>Saldos</h2><table class="c-t" style="margin-bottom:20px"><tbody>' + g.participants.map(p => { const v = b[p.id]; return `<tr style="cursor:default"><td>${esc(p.name)}</td><td class="num ${v > 0 ? 'pos' : v < 0 ? 'neg' : ''}">${v > 0 ? '+' : ''}${money(v, g.currency)}</td></tr>`; }).join('') + '</tbody></table>';
+  h += `<h2>Liquidación <span class="muted small">· ${t.length} transferencias</span></h2>`;
+  h += t.length ? '<div class="c-liq">' + t.map(x => `<b>${esc(pname(g, x.from))}</b><span class="muted">⟶</span><b>${esc(pname(g, x.to))}</b><span>${money(x.amount, g.currency)}</span>`).join('') + `</div><p>${btn('copyLiq', '', ui.copied ? 'Copiado ✓' : 'Copiar como texto')}</p>`
+    : '<p class="muted">Todo cuadrado.</p>';
+  return h + '</aside></div>' + drawerC(g);
+}
+function drawerC(g) {
+  const panel = (title, inner) => `<div class="c-drawer"><div class="c-head"><h2>${title}</h2><span style="flex:1"></span>${btn('close', '', '✕', 'link')}</div>${inner}</div>`;
+  if (ui.groupForm) {
+    const eg = ui.groupForm === 'new' ? null : g;
+    return panel(eg ? 'Ajustes del Grupo' : 'Nuevo Grupo', `<form data-submit="group">${groupFields(eg)}<div class="actions"><button class="primary">${eg ? 'Guardar' : 'Crear'}</button>${eg ? btn('deleteGroup', '', 'Borrar Grupo', 'danger') : ''}</div></form>`);
+  }
+  if (ui.expenseForm) {
+    const e = ui.expenseForm === 'new' ? null : g.expenses.find(x => x.id === ui.expenseForm);
+    return panel(e ? 'Editar Gasto' : 'Nuevo Gasto', `<form data-submit="expense">${hid(e ? e.id : 'new')}${fAmount(g, e, true)}${fPayerChips(g, e)}${fAmong(g, e)}${fConcept(e)}<div class="actions"><button class="primary">Guardar</button>${e ? btn('deleteExpense', e.id, 'Borrar', 'danger') : ''}</div></form>`);
+  }
+  if (ui.participantForm) {
+    const p = ui.participantForm === 'new' ? null : g.participants.find(x => x.id === ui.participantForm);
+    const inUse = p && used(g, p.id);
+    const list = p ? g.expenses.filter(e => e.payerId === p.id || e.among.includes(p.id)) : [];
+    return panel(p ? esc(p.name) : 'Nuevo Participante', `<form data-submit="participant">${hid(p ? p.id : 'new')}<label class="f">Nombre<input name="name" value="${esc(p ? p.name : '')}" autofocus></label><div class="actions"><button class="primary">Guardar</button>${p ? btn('deleteParticipant', p.id, 'Borrar', 'danger', inUse ? 'disabled' : '') : ''}</div></form>`
+      + (inUse ? `<p class="muted small">No se puede borrar: aparece en ${list.length} Gasto(s): ${list.map(e => esc(e.concept)).join(', ')}.</p>` : ''));
+  }
+  return '';
+}
+
+// ---------- Interruptor de variantes y render ----------
+const VARIANTS = { A: 'Página única', B: 'Móvil: lista de Grupos + pestañas', C: 'Escritorio en tres columnas' };
+const KEYS = Object.keys(VARIANTS);
+const RENDER = { A: renderA, B: renderB, C: renderC };
+let variant = new URLSearchParams(location.search).get('variant');
+if (!KEYS.includes(variant)) variant = 'A';
+function setVariant(d) {
+  variant = KEYS[(KEYS.indexOf(variant) + d + KEYS.length) % KEYS.length];
+  try { const u = new URL(location.href); u.searchParams.set('variant', variant); history.replaceState(null, '', u); } catch { /* file:// en algunos navegadores */ }
+  resetUi();
+}
+function render() {
+  document.getElementById('app').innerHTML = RENDER[variant]();
+  document.getElementById('proto-bar').innerHTML = `${btn('prev', '', '‹')}<span><b>${variant}</b> — ${VARIANTS[variant]}</span>${btn('next', '', '›')}${btn('toggleState', '', showState ? 'Ocultar estado' : 'Estado')}`;
+  const st = document.getElementById('proto-state');
+  st.hidden = !showState;
+  if (showState) {
+    const g = grp();
+    st.textContent = JSON.stringify({ variant, ui, currentId: state.currentId, saldos: g && balances(g), liquidacion: g && settle(g), groups: state.groups }, null, 1);
+  }
+  const auto = document.querySelector('[autofocus]');
+  if (auto) auto.focus();
+}
+
+document.addEventListener('click', ev => {
+  const t = ev.target.closest('[data-act]');
+  if (!t || t.disabled || t.dataset.act === 'noop') return;
+  act[t.dataset.act](t.dataset.arg);
+  render();
+});
+document.addEventListener('change', ev => {
+  const t = ev.target.closest('[data-change]');
+  if (!t) return;
+  act[t.dataset.change](t.value);
+  render();
+});
+document.addEventListener('submit', ev => {
+  ev.preventDefault();
+  if (save[ev.target.dataset.submit](new FormData(ev.target)) !== false) render();
+});
+document.addEventListener('keydown', ev => {
+  if (ev.target.closest('input, textarea, select, [contenteditable]')) return;
+  if (ev.key === 'ArrowLeft') { setVariant(-1); render(); }
+  if (ev.key === 'ArrowRight') { setVariant(1); render(); }
+  if (ev.key === 'Escape') { act.close(); render(); }
+});
+render();
+</script>
+</body>
+</html>
