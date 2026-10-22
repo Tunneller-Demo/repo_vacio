@@ -3,11 +3,14 @@ import {
   anadirGasto,
   anadirParticipante,
   borrarGasto,
+  borrarGrupo,
   borrarParticipante,
+  cambiarMonedaGrupo,
   crearGrupo,
   documentoVacio,
   editarGasto,
   marcarGrupoAbierto,
+  renombrarGrupo,
   renombrarParticipante,
   sePuedeBorrarParticipante,
   type Documento,
@@ -104,6 +107,67 @@ describe('marcarGrupoAbierto', () => {
 
   it('rechaza un Grupo que no existe', () => {
     expect(marcarGrupoAbierto(documentoConDosGrupos(), 'g9', { ahora: 50 })).toEqual({ ok: false, error: 'no-encontrado' });
+  });
+});
+
+describe('renombrarGrupo', () => {
+  it('cambia el nombre, sin espacios en los extremos, sin tocar los demás Grupos', () => {
+    const documento = documentoConDosGrupos();
+    const resultado = renombrarGrupo(documento, 'g1', '  Lisboa 2026 ');
+
+    expect(resultado.ok && grupo(resultado.documento, 'g1').nombre).toBe('Lisboa 2026');
+    expect(resultado.ok && grupo(resultado.documento, 'g2')).toEqual(grupo(documento, 'g2'));
+    expect(grupo(documento, 'g1').nombre).toBe('Viaje a Lisboa');
+  });
+
+  it.each(['', '   '])('rechaza un nombre vacío (%j)', (nombre) => {
+    expect(renombrarGrupo(documentoConDosGrupos(), 'g1', nombre)).toEqual({ ok: false, error: 'nombre-vacio' });
+  });
+
+  it('rechaza un Grupo que no existe', () => {
+    expect(renombrarGrupo(documentoConDosGrupos(), 'g9', 'Lisboa')).toEqual({ ok: false, error: 'no-encontrado' });
+  });
+});
+
+describe('cambiarMonedaGrupo', () => {
+  it('cambia solo la moneda: los importes de los Gastos no se recalculan', () => {
+    const documento = conGasto(conParticipantes(documentoConDosGrupos(), 'g1', [['a', 'Ana']]), 'g1', {
+      id: 'x1', concepto: 'Cena', importe: 6000, pagadorId: 'a', entre: ['a'],
+    });
+    const resultado = cambiarMonedaGrupo(documento, 'g1', 'GBP');
+
+    expect(resultado.ok).toBe(true);
+    if (!resultado.ok) return;
+    expect(grupo(resultado.documento, 'g1')).toEqual({ ...grupo(documento, 'g1'), moneda: 'GBP' });
+    expect(grupo(documento, 'g1').moneda).toBe('EUR');
+  });
+
+  it('rechaza un Grupo que no existe', () => {
+    expect(cambiarMonedaGrupo(documentoConDosGrupos(), 'g9', 'GBP')).toEqual({ ok: false, error: 'no-encontrado' });
+  });
+});
+
+describe('borrarGrupo', () => {
+  it('quita el Grupo con sus Participantes y Gastos, sin tocar los demás', () => {
+    const documento = conGasto(conParticipantes(documentoConDosGrupos(), 'g1', [['a', 'Ana']]), 'g1', {
+      id: 'x1', concepto: 'Cena', importe: 6000, pagadorId: 'a', entre: ['a'],
+    });
+    const resultado = borrarGrupo(documento, 'g1');
+
+    expect(resultado.ok && resultado.documento.grupos).toEqual([grupo(documento, 'g2')]);
+    expect(documento.grupos).toHaveLength(2);
+  });
+
+  it('si era el último Grupo abierto, deja de serlo', () => {
+    const abierto = marcarGrupoAbierto(documentoConDosGrupos(), 'g1', { ahora: 50 });
+    if (!abierto.ok) throw new Error('no se abrió g1');
+
+    expect(borrarGrupo(abierto.documento, 'g1')).toMatchObject({ ok: true, documento: { ultimoGrupoAbiertoId: null } });
+    expect(borrarGrupo(abierto.documento, 'g2')).toMatchObject({ ok: true, documento: { ultimoGrupoAbiertoId: 'g1' } });
+  });
+
+  it('rechaza un Grupo que no existe', () => {
+    expect(borrarGrupo(documentoConDosGrupos(), 'g9')).toEqual({ ok: false, error: 'no-encontrado' });
   });
 });
 

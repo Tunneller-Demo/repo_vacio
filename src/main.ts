@@ -3,10 +3,13 @@ import {
   anadirGasto,
   anadirParticipante,
   borrarGasto,
+  borrarGrupo,
   borrarParticipante,
+  cambiarMonedaGrupo,
   crearGrupo,
   editarGasto,
   marcarGrupoAbierto,
+  renombrarGrupo,
   renombrarParticipante,
   sePuedeBorrarParticipante,
   type Documento,
@@ -25,6 +28,7 @@ type Pantalla = { tipo: 'grupos' } | { tipo: 'grupo'; grupoId: string; pestana: 
 // La hoja modal abierta, si hay alguna. Un id `null` es un Participante o un Gasto nuevo.
 type Hoja =
   | { tipo: 'crear-grupo' }
+  | { tipo: 'ajustes' }
   | { tipo: 'participante'; participanteId: string | null }
   | { tipo: 'gasto'; gastoId: string | null };
 
@@ -88,10 +92,21 @@ function grupoAbierto(): Grupo | undefined {
   return actual.tipo === 'grupo' ? documento.grupos.find((g) => g.id === actual.grupoId) : undefined;
 }
 
+const conPlural = (n: number, singular: string, plural: string) => `${n} ${n === 1 ? singular : plural}`;
+
+// El último abierto arriba; cada Grupo con su total gastado y su número de Participantes.
 function pintarGrupos(): string {
-  const lista = documento.grupos.length
-    ? `<ul class="lista">${documento.grupos
-        .map((g) => `<li><button type="button" data-accion="abrir-grupo" data-id="${escapar(g.id)}">${escapar(g.nombre)}</button></li>`)
+  const grupos = [...documento.grupos].sort((a, b) => b.ultimaApertura - a.ultimaApertura);
+  const lista = grupos.length
+    ? `<ul class="lista">${grupos
+        .map((g) => {
+          const total = g.gastos.reduce((suma, gasto) => suma + gasto.importe, 0);
+          return `<li><button type="button" class="grupo" data-accion="abrir-grupo" data-id="${escapar(g.id)}">
+            <span><span class="nombre">${escapar(g.nombre)}</span>
+              <span class="apagado detalle">${conPlural(g.participantes.length, 'Participante', 'Participantes')}</span></span>
+            <span class="importe">${formatearImporte(total, g.moneda)}</span>
+          </button></li>`;
+        })
         .join('')}</ul>
        <div class="acciones-lista"><button type="button" class="primario" data-accion="nuevo-grupo">Crear Grupo</button></div>`
     : `<div class="vacio"><p class="apagado">Aún no hay Grupos.</p>
@@ -193,6 +208,7 @@ function pintarGrupo(grupo: Grupo, pestana: Pestana): string {
   return `<header class="cabecera">
       <button type="button" data-accion="volver">‹ Grupos</button>
       <h1>${escapar(grupo.nombre)}</h1>
+      <button type="button" data-accion="ajustes" aria-label="Ajustes del Grupo">⋯</button>
     </header>
     <nav class="pestanas" role="tablist">${pestanas}</nav>
     ${panel}`;
@@ -208,10 +224,16 @@ function pintarHoja(titulo: string, campos: string, botones: string): string {
   </div>`;
 }
 
-function pintarHojaCrearGrupo(): string {
-  const opciones = Object.entries(MONEDAS)
-    .map(([codigo, nombre]) => `<option value="${codigo}"${codigo === MONEDA_POR_DEFECTO ? ' selected' : ''}>${nombre}</option>`)
+// Si la moneda elegida no está en la lista, se ofrece igualmente para no cambiarla sin querer.
+function opcionesMoneda(elegida: string): string {
+  const monedas = elegida in MONEDAS ? MONEDAS : { ...MONEDAS, [elegida]: elegida };
+  return Object.entries(monedas)
+    .map(([codigo, nombre]) => `<option value="${escapar(codigo)}"${codigo === elegida ? ' selected' : ''}>${escapar(nombre)}</option>`)
     .join('');
+}
+
+function pintarHojaCrearGrupo(): string {
+  const opciones = opcionesMoneda(MONEDA_POR_DEFECTO);
   return pintarHoja(
     'Nuevo Grupo',
     `<label class="campo">Nombre del Grupo<input name="nombre" required placeholder="Viaje, cena…" autocomplete="off" /></label>
@@ -219,6 +241,19 @@ function pintarHojaCrearGrupo(): string {
       <label class="campo">Moneda<select name="moneda">${opciones}</select></label>`,
     `<button type="submit" class="primario">Crear Grupo</button>
       <button type="button" data-accion="cerrar-hoja">Cancelar</button>`,
+  );
+}
+
+function pintarHojaAjustes(grupo: Grupo): string {
+  return pintarHoja(
+    'Ajustes del Grupo',
+    `<label class="campo">Nombre del Grupo<input name="nombre" required value="${escapar(grupo.nombre)}" autocomplete="off" /></label>
+      <p class="error" id="error-nombre" hidden>Falta el nombre del Grupo.</p>
+      <label class="campo">Moneda<select name="moneda">${opcionesMoneda(grupo.moneda)}</select></label>
+      <p class="apagado nota">Cambiar la moneda solo cambia cómo se muestran los importes; no los recalcula.</p>`,
+    `<button type="submit" class="primario">Guardar</button>
+      <button type="button" data-accion="cerrar-hoja">Cancelar</button>
+      <button type="button" class="peligro" data-accion="borrar-grupo">Borrar Grupo</button>`,
   );
 }
 
@@ -306,6 +341,7 @@ function pintar(): void {
   const contenido = pantalla.tipo === 'grupo' && grupo ? pintarGrupo(grupo, pantalla.pestana) : pintarGrupos();
   let modal = '';
   if (hoja?.tipo === 'crear-grupo') modal = pintarHojaCrearGrupo();
+  else if (hoja?.tipo === 'ajustes' && grupo) modal = pintarHojaAjustes(grupo);
   else if (hoja?.tipo === 'participante' && grupo) modal = pintarHojaParticipante(grupo, hoja.participanteId);
   else if (hoja?.tipo === 'gasto' && grupo) modal = pintarHojaGasto(grupo, hoja.gastoId);
   const banda = [avisoCarga, falloGuardado ? AVISOS.falloGuardado : null]
@@ -324,6 +360,22 @@ function borrarGastoAbierto(): boolean {
   if (!grupo || !gasto) return false;
   if (!confirm(`¿Borrar el Gasto «${gasto.concepto}» (${formatearImporte(gasto.importe, grupo.moneda)})?`)) return false;
   const resultado = borrarGasto(documento, grupo.id, gasto.id);
+  if (!resultado.ok) return false;
+  confirmar(resultado.documento);
+  return true;
+}
+
+// Avisa de lo que se pierde: «Se borrarán el Grupo "Viaje a Lisboa" y sus 23 Gastos».
+function borrarGrupoAbierto(): boolean {
+  const grupo = grupoAbierto();
+  if (!grupo) return false;
+  const n = grupo.gastos.length;
+  const pregunta =
+    n === 0
+      ? `Se borrará el Grupo "${grupo.nombre}", que no tiene Gastos.`
+      : `Se borrarán el Grupo "${grupo.nombre}" y ${n === 1 ? 'su único Gasto' : `sus ${n} Gastos`}.`;
+  if (!confirm(pregunta)) return false;
+  const resultado = borrarGrupo(documento, grupo.id);
   if (!resultado.ok) return false;
   confirmar(resultado.documento);
   return true;
@@ -350,6 +402,14 @@ app.addEventListener('click', (evento) => {
   switch (objetivo.dataset.accion) {
     case 'nuevo-grupo':
       hoja = { tipo: 'crear-grupo' };
+      break;
+    case 'ajustes':
+      hoja = { tipo: 'ajustes' };
+      break;
+    case 'borrar-grupo':
+      if (!borrarGrupoAbierto()) return;
+      hoja = null;
+      pantalla = { tipo: 'grupos' };
       break;
     case 'nuevo-participante':
       hoja = { tipo: 'participante', participanteId: null };
@@ -419,6 +479,11 @@ app.addEventListener('submit', (evento) => {
       { nombre, moneda: String(datos.get('moneda') ?? MONEDA_POR_DEFECTO) },
       { id: crypto.randomUUID(), ahora: Date.now() },
     );
+  } else if (hoja?.tipo === 'ajustes' && grupo) {
+    const renombrado = renombrarGrupo(documento, grupo.id, nombre);
+    resultado = renombrado.ok
+      ? cambiarMonedaGrupo(renombrado.documento, grupo.id, String(datos.get('moneda') ?? grupo.moneda))
+      : renombrado;
   } else if (hoja?.tipo === 'participante' && grupo) {
     resultado = hoja.participanteId
       ? renombrarParticipante(documento, grupo.id, hoja.participanteId, nombre)

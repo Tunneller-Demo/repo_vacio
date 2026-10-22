@@ -77,7 +77,7 @@ export type ResultadoMarcarAbierto = { ok: true; documento: Documento } | { ok: 
 
 /** Al entrar en un Grupo: pasa a ser el último abierto y se apunta cuándo. */
 export function marcarGrupoAbierto(documento: Documento, grupoId: string, contexto: { ahora: number }): ResultadoMarcarAbierto {
-  if (!documento.grupos.some((g) => g.id === grupoId)) return { ok: false, error: 'no-encontrado' };
+  if (!existeGrupo(documento, grupoId)) return { ok: false, error: 'no-encontrado' };
   return {
     ok: true,
     documento: {
@@ -87,11 +87,41 @@ export function marcarGrupoAbierto(documento: Documento, grupoId: string, contex
   };
 }
 
+export type ResultadoCambioGrupo = { ok: true; documento: Documento } | { ok: false; error: ErrorGrupo };
+
+export function renombrarGrupo(documento: Documento, grupoId: string, nombreNuevo: string): ResultadoCambioGrupo {
+  const nombre = nombreNuevo.trim();
+  if (!nombre) return { ok: false, error: 'nombre-vacio' };
+  if (!existeGrupo(documento, grupoId)) return { ok: false, error: 'no-encontrado' };
+  return { ok: true, documento: conGrupo(documento, grupoId, (g) => ({ ...g, nombre })) };
+}
+
+/** Solo cambia la etiqueta de los importes: los céntimos de los Gastos no se recalculan. */
+export function cambiarMonedaGrupo(documento: Documento, grupoId: string, moneda: string): ResultadoCambioGrupo {
+  if (!existeGrupo(documento, grupoId)) return { ok: false, error: 'no-encontrado' };
+  return { ok: true, documento: conGrupo(documento, grupoId, (g) => ({ ...g, moneda })) };
+}
+
+/** Quita el Grupo con sus Participantes y Gastos; si era el último abierto, deja de serlo. */
+export function borrarGrupo(documento: Documento, grupoId: string): ResultadoCambioGrupo {
+  if (!existeGrupo(documento, grupoId)) return { ok: false, error: 'no-encontrado' };
+  return {
+    ok: true,
+    documento: {
+      ...documento,
+      grupos: documento.grupos.filter((g) => g.id !== grupoId),
+      ultimoGrupoAbiertoId: documento.ultimoGrupoAbiertoId === grupoId ? null : documento.ultimoGrupoAbiertoId,
+    },
+  };
+}
+
 export type ResultadoParticipante =
   | { ok: true; documento: Documento; participante: Participante }
   | { ok: false; error: ErrorGrupo };
 
 export type ResultadoBorrarParticipante ={ ok: true; documento: Documento } | { ok: false; error: ErrorGrupo };
+
+const existeGrupo = (documento: Documento, grupoId: string) => documento.grupos.some((g) => g.id === grupoId);
 
 // Devuelve el documento con el Grupo indicado sustituido por `cambiar(grupo)`.
 function conGrupo(documento: Documento, grupoId: string, cambiar: (grupo: Grupo) => Grupo): Documento {
@@ -117,7 +147,7 @@ export function anadirParticipante(
 ): ResultadoParticipante {
   const nombre = datos.nombre.trim();
   if (!nombre) return { ok: false, error: 'nombre-vacio' };
-  if (!documento.grupos.some((g) => g.id === grupoId)) return { ok: false, error: 'no-encontrado' };
+  if (!existeGrupo(documento, grupoId)) return { ok: false, error: 'no-encontrado' };
 
   const participante: Participante = { id: contexto.id, nombre };
   return {
