@@ -5,7 +5,7 @@ Cuentas compartidas entre amigos: se apunta quién pagó cada cosa y la app calc
 ## Language
 
 **Grupo**:
-El viaje, la cena o la ocasión cuyos gastos se reparten; tiene una sola moneda.
+El viaje, la cena o la ocasión cuyos gastos se reparten; tiene un nombre y una sola moneda, y sus propios Participantes y Gastos. Se pueden llevar varios Grupos a la vez, independientes entre sí.
 _Avoid_: Viaje, evento, cuenta
 
 **Participante**:
