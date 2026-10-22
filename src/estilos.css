@@ -29,3 +29,8 @@ input, select { font: inherit; padding: 6px 8px; border: 1px solid #c9ced6; bord
 .campo > input, .campo > select { display: block; width: 100%; margin-top: 4px; }
 .error { color: #b42318; margin: -6px 0 12px; }
 .botones { display: flex; gap: 8px; }
+
+.flotante { position: fixed; right: max(18px, calc(50% - 242px)); bottom: 18px; width: 52px; height: 52px; border-radius: 50%; padding: 0; font-size: 24px; background: #2b6cb0; border-color: #2b6cb0; color: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); }
+button.peligro { margin-left: auto; color: #b42318; border-color: #f0b4ae; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+.nota { font-size: 13px; margin: -4px 0 12px; }
