@@ -47,5 +47,16 @@ fieldset.campo legend { padding: 0; margin-bottom: 6px; }
 .marcable .parte { font-size: 13px; color: #6b7380; }
 .lista button.gasto { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .gasto .concepto { font-weight: 600; }
-.gasto .detalle { display: block; font-size: 13px; }
-.gasto .importe { font-weight: 700; white-space: nowrap; }
+.gasto .detalle, .saldo .detalle { display: block; font-size: 13px; }
+.gasto .importe, .saldo .importe { font-weight: 700; white-space: nowrap; }
+
+.saldo { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px; border-bottom: 1px solid #eef0f2; }
+.saldo.positivo .importe { color: #1f7a4a; }
+.saldo.negativo .importe { color: #b42318; }
+.saldo.en-paz .importe { color: #6b7380; }
+.seccion { padding: 18px 14px 0; }
+.seccion h2 { font-size: 16px; }
+.liquidacion { margin: 0; padding-left: 22px; }
+.liquidacion li { padding: 4px 0; }
+.seccion .acciones-lista { padding: 14px 0; }
+.en-paz-todos { margin: 0 0 18px; padding: 12px; border-radius: 6px; background: #eaf6ef; color: #1f7a4a; font-weight: 600; }

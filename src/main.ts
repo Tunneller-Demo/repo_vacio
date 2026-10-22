@@ -15,7 +15,7 @@ import {
   type Grupo,
 } from './grupos';
 import { formatearImporte, importeParaEditar, leerImporte } from './importes';
-import { partesDeGasto } from './reparto';
+import { liquidacionDeGrupo, partesDeGasto, saldosDeGrupo, type Transferencia } from './reparto';
 
 type Pestana = 'gastos' | 'saldos' | 'participantes';
 
@@ -101,6 +101,41 @@ function pintarGastos(grupo: Grupo): string {
     <button type="button" class="flotante" data-accion="nuevo-gasto" aria-label="Nuevo Gasto">＋</button>`;
 }
 
+// Las frases de la Liquidación, tal como se muestran y se copian: «Ana paga 93,67 € a Bruno».
+const fraseDe = (grupo: Grupo, t: Transferencia) =>
+  `${nombreDe(grupo, t.deId)} paga ${formatearImporte(t.importe, grupo.moneda)} a ${nombreDe(grupo, t.aId)}`;
+
+function pintarSaldos(grupo: Grupo): string {
+  if (!grupo.participantes.length) return `<div class="vacio apagado" role="tabpanel">${PESTANAS.saldos.vacio}</div>`;
+  const saldos = [...saldosDeGrupo(grupo)]
+    .map(([id, saldo]) => {
+      const [clase, estado] = saldo > 0 ? ['positivo', 'le deben'] : saldo < 0 ? ['negativo', 'debe'] : ['en-paz', 'en paz'];
+      return `<li class="saldo ${clase}"><span>${escapar(nombreDe(grupo, id))}<span class="apagado detalle">${estado}</span></span>
+        <span class="importe">${saldo > 0 ? '+' : ''}${formatearImporte(saldo, grupo.moneda)}</span></li>`;
+    })
+    .join('');
+  const transferencias = liquidacionDeGrupo(grupo);
+  const liquidacion = transferencias.length
+    ? `<ol class="liquidacion">${transferencias.map((t) => `<li>${escapar(fraseDe(grupo, t))}</li>`).join('')}</ol>
+       <div class="acciones-lista"><button type="button" data-accion="copiar-liquidacion">Copiar como texto</button></div>`
+    : `<p class="en-paz-todos">Todos están en paz: nadie debe nada.</p>`;
+  return `<div role="tabpanel"><ul class="lista">${saldos}</ul>
+    <section class="seccion"><h2>Liquidación</h2>${liquidacion}</section></div>`;
+}
+
+// Copia las frases de la Liquidación, una por línea, y lo cuenta en el propio botón.
+async function copiarLiquidacion(boton: HTMLElement): Promise<void> {
+  const grupo = grupoAbierto();
+  if (!grupo) return;
+  const texto = liquidacionDeGrupo(grupo).map((t) => fraseDe(grupo, t)).join('\n');
+  try {
+    await navigator.clipboard.writeText(texto);
+    boton.textContent = 'Copiado ✓';
+  } catch {
+    boton.textContent = 'No se pudo copiar';
+  }
+}
+
 function pintarParticipantes(grupo: Grupo): string {
   const lista = grupo.participantes.length
     ? `<ul class="lista">${grupo.participantes
@@ -126,7 +161,7 @@ function pintarGrupo(grupo: Grupo, pestana: Pestana): string {
       ? pintarParticipantes(grupo)
       : pestana === 'gastos'
         ? pintarGastos(grupo)
-        : `<div class="vacio apagado" role="tabpanel">${PESTANAS[pestana].vacio}</div>`;
+        : pintarSaldos(grupo);
   return `<header class="cabecera">
       <button type="button" data-accion="volver">‹ Grupos</button>
       <h1>${escapar(grupo.nombre)}</h1>
@@ -313,6 +348,9 @@ app.addEventListener('click', (evento) => {
     case 'marcar-ninguno':
       for (const boton of objetivo.closest('form')!.querySelectorAll('.marcable')) boton.setAttribute('aria-pressed', String(objetivo.dataset.accion === 'marcar-todos'));
       actualizarHojaGasto();
+      return;
+    case 'copiar-liquidacion':
+      void copiarLiquidacion(objetivo);
       return;
     case 'cerrar-hoja':
       hoja = null;
