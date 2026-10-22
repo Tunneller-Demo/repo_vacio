@@ -7,6 +7,7 @@ input, select { font: inherit; padding: 6px 8px; border: 1px solid #c9ced6; bord
 .apagado { color: #6b7380; }
 
 .pantalla { position: relative; max-width: 520px; min-height: 100vh; margin: 0 auto; background: #fff; }
+.aviso { margin: 0; padding: 10px 14px; background: #fff4e5; color: #8a4b00; border-bottom: 1px solid #f5c98a; font-weight: 600; }
 .cabecera { display: flex; align-items: center; gap: 12px; padding: 14px; background: #2b6cb0; color: #fff; }
 .cabecera h1 { margin: 0; font-size: 18px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cabecera button { background: none; border: 0; color: #fff; font-size: 16px; padding: 0; }

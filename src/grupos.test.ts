@@ -7,6 +7,7 @@ import {
   crearGrupo,
   documentoVacio,
   editarGasto,
+  marcarGrupoAbierto,
   renombrarParticipante,
   sePuedeBorrarParticipante,
   type Documento,
@@ -85,6 +86,24 @@ describe('crearGrupo', () => {
 
     expect(resultado).toEqual({ ok: false, error: 'nombre-vacio' });
     expect(documento.grupos).toEqual([]);
+  });
+});
+
+describe('marcarGrupoAbierto', () => {
+  it('lo deja como último Grupo abierto y apunta cuándo, sin tocar los demás', () => {
+    const documento = documentoConDosGrupos();
+    const resultado = marcarGrupoAbierto(documento, 'g1', { ahora: 50 });
+
+    expect(resultado.ok).toBe(true);
+    if (!resultado.ok) return;
+    expect(resultado.documento.ultimoGrupoAbiertoId).toBe('g1');
+    expect(grupo(resultado.documento, 'g1').ultimaApertura).toBe(50);
+    expect(grupo(resultado.documento, 'g2')).toEqual(grupo(documento, 'g2'));
+    expect(documento.ultimoGrupoAbiertoId).toBeNull();
+  });
+
+  it('rechaza un Grupo que no existe', () => {
+    expect(marcarGrupoAbierto(documentoConDosGrupos(), 'g9', { ahora: 50 })).toEqual({ ok: false, error: 'no-encontrado' });
   });
 });
 

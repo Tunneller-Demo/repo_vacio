@@ -5,8 +5,8 @@ import {
   borrarGasto,
   borrarParticipante,
   crearGrupo,
-  documentoVacio,
   editarGasto,
+  marcarGrupoAbierto,
   renombrarParticipante,
   sePuedeBorrarParticipante,
   type Documento,
@@ -14,6 +14,7 @@ import {
   type Gasto,
   type Grupo,
 } from './grupos';
+import { crearGuardado } from './guardado';
 import { formatearImporte, importeParaEditar, leerImporte } from './importes';
 import { liquidacionDeGrupo, partesDeGasto, saldosDeGrupo, type Transferencia } from './reparto';
 
@@ -46,9 +47,36 @@ const MONEDAS: Record<string, string> = {
   COP: 'Peso colombiano (COP)',
 };
 
-let documento: Documento = documentoVacio();
-let pantalla: Pantalla = { tipo: 'grupos' };
+const AVISOS = {
+  danado: 'No se pudieron leer los datos guardados; se ha guardado una copia.',
+  versionMasNueva: 'Estos datos son de una versión más nueva de la app; recarga la página.',
+  falloGuardado: 'No se pudo guardar; los cambios se perderán al cerrar.',
+};
+
+// `localStorage` se lee dentro de cada llamada: si está bloqueado, el error lo recoge el guardado.
+const guardado = crearGuardado({
+  leer: (clave) => localStorage.getItem(clave),
+  escribir: (clave, texto) => localStorage.setItem(clave, texto),
+});
+
+const carga = guardado.cargar();
+let documento: Documento = carga.documento;
+// Se abre el último Grupo abierto; si no hay ninguno o se borró, la lista de Grupos.
+const ultimoGrupoId = documento.grupos.some((g) => g.id === documento.ultimoGrupoAbiertoId) ? documento.ultimoGrupoAbiertoId : null;
+let pantalla: Pantalla = ultimoGrupoId ? { tipo: 'grupo', grupoId: ultimoGrupoId, pestana: 'gastos' } : { tipo: 'grupos' };
 let hoja: Hoja | null = null;
+// El aviso de la carga (datos dañados o versión más nueva) dura toda la sesión; el de fallo al
+// guardar desaparece en cuanto un guardado vuelve a funcionar.
+const avisoCarga = carga.estado === 'danado' ? AVISOS.danado : carga.estado === 'version-mas-nueva' ? AVISOS.versionMasNueva : null;
+let falloGuardado = carga.estado === 'cargado' && carga.errorGuardado === 'fallo-escritura';
+
+// Cada cambio confirmado se guarda al instante; si falla, la app sigue con los datos en memoria.
+// Con el guardado bloqueado (versión más nueva) ya se ve el aviso de la carga.
+function confirmar(nuevo: Documento): void {
+  documento = nuevo;
+  const resultado = guardado.guardar(documento);
+  falloGuardado = !resultado.ok && resultado.error === 'fallo-escritura';
+}
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
@@ -280,7 +308,11 @@ function pintar(): void {
   if (hoja?.tipo === 'crear-grupo') modal = pintarHojaCrearGrupo();
   else if (hoja?.tipo === 'participante' && grupo) modal = pintarHojaParticipante(grupo, hoja.participanteId);
   else if (hoja?.tipo === 'gasto' && grupo) modal = pintarHojaGasto(grupo, hoja.gastoId);
-  app.innerHTML = `<main class="pantalla">${contenido}</main>${modal}`;
+  const banda = [avisoCarga, falloGuardado ? AVISOS.falloGuardado : null]
+    .filter((aviso) => aviso !== null)
+    .map((aviso) => `<p class="aviso" role="alert">${aviso}</p>`)
+    .join('');
+  app.innerHTML = `<main class="pantalla">${banda}${contenido}</main>${modal}`;
   app.querySelector<HTMLInputElement>('.hoja input')?.focus();
   actualizarHojaGasto();
 }
@@ -293,7 +325,7 @@ function borrarGastoAbierto(): boolean {
   if (!confirm(`¿Borrar el Gasto «${gasto.concepto}» (${formatearImporte(gasto.importe, grupo.moneda)})?`)) return false;
   const resultado = borrarGasto(documento, grupo.id, gasto.id);
   if (!resultado.ok) return false;
-  documento = resultado.documento;
+  confirmar(resultado.documento);
   return true;
 }
 
@@ -305,7 +337,7 @@ function borrarParticipanteAbierto(): boolean {
   if (!confirm(`¿Borrar a «${participante.nombre}» del Grupo?`)) return false;
   const resultado = borrarParticipante(documento, grupo.id, participante.id);
   if (!resultado.ok) return false;
-  documento = resultado.documento;
+  confirmar(resultado.documento);
   return true;
 }
 
@@ -355,9 +387,12 @@ app.addEventListener('click', (evento) => {
     case 'cerrar-hoja':
       hoja = null;
       break;
-    case 'abrir-grupo':
+    case 'abrir-grupo': {
+      const abierto = marcarGrupoAbierto(documento, objetivo.dataset.id!, { ahora: Date.now() });
+      if (abierto.ok) confirmar(abierto.documento);
       pantalla = { tipo: 'grupo', grupoId: objetivo.dataset.id!, pestana: 'gastos' };
       break;
+    }
     case 'pestana':
       if (pantalla.tipo === 'grupo') pantalla = { ...pantalla, pestana: objetivo.dataset.pestana as Pestana };
       break;
@@ -404,7 +439,7 @@ app.addEventListener('submit', (evento) => {
   // Los demás Gastos inválidos ya tienen Guardar desactivado: la hoja sigue abierta.
   if (!resultado.ok && resultado.error !== 'no-encontrado') return;
   // Si el Grupo, el Participante o el Gasto ya no existen, se cierra la hoja sin cambios.
-  if (resultado.ok) documento = resultado.documento;
+  if (resultado.ok) confirmar(resultado.documento);
   hoja = null;
   pintar();
 });

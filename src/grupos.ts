@@ -29,7 +29,8 @@ export interface Grupo {
 }
 
 export interface Documento {
-  version: 1;
+  /** Versión de la forma del documento guardado; ver el módulo de guardado. */
+  version: number;
   grupos: Grupo[];
   ultimoGrupoAbiertoId: string | null;
 }
@@ -46,8 +47,11 @@ export type ResultadoCrearGrupo =
   | { ok: true; documento: Documento; grupo: Grupo }
   | { ok: false; error: ErrorGrupo };
 
+/** La versión de la forma del documento que entiende esta app. */
+export const VERSION_DOCUMENTO = 1;
+
 export function documentoVacio(): Documento {
-  return { version: 1, grupos: [], ultimoGrupoAbiertoId: null };
+  return { version: VERSION_DOCUMENTO, grupos: [], ultimoGrupoAbiertoId: null };
 }
 
 export function crearGrupo(
@@ -67,6 +71,20 @@ export function crearGrupo(
     gastos: [],
   };
   return { ok: true, documento: { ...documento, grupos: [...documento.grupos, grupo] }, grupo };
+}
+
+export type ResultadoMarcarAbierto = { ok: true; documento: Documento } | { ok: false; error: ErrorGrupo };
+
+/** Al entrar en un Grupo: pasa a ser el último abierto y se apunta cuándo. */
+export function marcarGrupoAbierto(documento: Documento, grupoId: string, contexto: { ahora: number }): ResultadoMarcarAbierto {
+  if (!documento.grupos.some((g) => g.id === grupoId)) return { ok: false, error: 'no-encontrado' };
+  return {
+    ok: true,
+    documento: {
+      ...conGrupo(documento, grupoId, (g) => ({ ...g, ultimaApertura: contexto.ahora })),
+      ultimoGrupoAbiertoId: grupoId,
+    },
+  };
 }
 
 export type ResultadoParticipante =
