@@ -5,18 +5,15 @@ type Pestana = 'gastos' | 'saldos' | 'participantes';
 
 type Pantalla = { tipo: 'grupos' } | { tipo: 'grupo'; grupoId: string; pestana: Pestana };
 
-const PESTANAS: Record<Pestana, string> = {
-  gastos: 'Gastos',
-  saldos: 'Saldos',
-  participantes: 'Participantes',
+const PESTANAS: Record<Pestana, { titulo: string; vacio: string }> = {
+  gastos: { titulo: 'Gastos', vacio: 'Sin Gastos todavía.' },
+  saldos: { titulo: 'Saldos', vacio: 'Sin Saldos todavía.' },
+  participantes: { titulo: 'Participantes', vacio: 'Sin Participantes todavía.' },
 };
 
-const VACIO_PESTANA: Record<Pestana, string> = {
-  gastos: 'Sin Gastos todavía.',
-  saldos: 'Sin Saldos todavía.',
-  participantes: 'Sin Participantes todavía.',
-};
+const MONEDA_POR_DEFECTO = 'EUR';
 
+// Solo monedas con céntimos: los importes se guardan en céntimos enteros.
 const MONEDAS: Record<string, string> = {
   EUR: 'Euro (EUR)',
   USD: 'Dólar estadounidense (USD)',
@@ -25,7 +22,6 @@ const MONEDAS: Record<string, string> = {
   MXN: 'Peso mexicano (MXN)',
   ARS: 'Peso argentino (ARS)',
   COP: 'Peso colombiano (COP)',
-  CLP: 'Peso chileno (CLP)',
 };
 
 let documento: Documento = documentoVacio();
@@ -52,7 +48,7 @@ function pintarGrupo(grupo: Grupo, pestana: Pestana): string {
   const pestanas = (Object.keys(PESTANAS) as Pestana[])
     .map(
       (p) =>
-        `<button type="button" role="tab" aria-selected="${p === pestana}" data-accion="pestana" data-pestana="${p}">${PESTANAS[p]}</button>`,
+        `<button type="button" role="tab" aria-selected="${p === pestana}" data-accion="pestana" data-pestana="${p}">${PESTANAS[p].titulo}</button>`,
     )
     .join('');
   return `<header class="cabecera">
@@ -60,12 +56,12 @@ function pintarGrupo(grupo: Grupo, pestana: Pestana): string {
       <h1>${escapar(grupo.nombre)}</h1>
     </header>
     <nav class="pestanas" role="tablist">${pestanas}</nav>
-    <div class="vacio apagado" role="tabpanel">${VACIO_PESTANA[pestana]}</div>`;
+    <div class="vacio apagado" role="tabpanel">${PESTANAS[pestana].vacio}</div>`;
 }
 
 function pintarHojaCrearGrupo(): string {
   const opciones = Object.entries(MONEDAS)
-    .map(([codigo, nombre]) => `<option value="${codigo}"${codigo === 'EUR' ? ' selected' : ''}>${nombre}</option>`)
+    .map(([codigo, nombre]) => `<option value="${codigo}"${codigo === MONEDA_POR_DEFECTO ? ' selected' : ''}>${nombre}</option>`)
     .join('');
   return `<div class="fondo" data-accion="cerrar-hoja">
     <form class="hoja" role="dialog" aria-labelledby="titulo-hoja" novalidate>
@@ -123,7 +119,7 @@ app.addEventListener('submit', (evento) => {
   const datos = new FormData(formulario);
   const resultado = crearGrupo(
     documento,
-    { nombre: String(datos.get('nombre') ?? ''), moneda: String(datos.get('moneda') ?? 'EUR') },
+    { nombre: String(datos.get('nombre') ?? ''), moneda: String(datos.get('moneda') ?? MONEDA_POR_DEFECTO) },
     { id: crypto.randomUUID(), ahora: Date.now() },
   );
   if (!resultado.ok) {
@@ -134,6 +130,13 @@ app.addEventListener('submit', (evento) => {
   documento = resultado.documento;
   hojaCrearGrupo = false;
   pintar();
+});
+
+// El aviso de nombre vacío desaparece en cuanto se escribe algo.
+app.addEventListener('input', (evento) => {
+  if ((evento.target as HTMLElement).matches('input[name="nombre"]')) {
+    app.querySelector<HTMLElement>('#error-nombre')!.hidden = true;
+  }
 });
 
 document.addEventListener('keydown', (evento) => {
