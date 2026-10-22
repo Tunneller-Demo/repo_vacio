@@ -13,7 +13,7 @@ Cada persona del Grupo que puede pagar un Gasto o deber parte de él.
 _Avoid_: Amigo, miembro, usuario
 
 **Gasto**:
-Un pago hecho por un Participante: concepto, importe y entre quiénes se reparte.
+Un pago hecho por un Participante: concepto, importe y entre quiénes se reparte. Siempre se reparte a partes iguales entre los Participantes marcados (quien paga puede no estar entre ellos); un reparto desigual se apunta como varios Gastos.
 _Avoid_: Pago, compra, transacción
 
 **Saldo**:
