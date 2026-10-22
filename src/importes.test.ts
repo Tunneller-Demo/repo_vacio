@@ -17,6 +17,15 @@ describe('leerImporte', () => {
     expect(leerImporte('7,')).toBe(700);
   });
 
+  it('acepta importes sin cero delante del separador', () => {
+    expect(leerImporte(',50')).toBe(50);
+    expect(leerImporte('.5')).toBe(50);
+  });
+
+  it('rechaza importes demasiado grandes para contarlos al céntimo', () => {
+    expect(leerImporte('99999999999999999')).toBeNull();
+  });
+
   it('rechaza el cero', () => {
     expect(leerImporte('0')).toBeNull();
     expect(leerImporte('0,00')).toBeNull();

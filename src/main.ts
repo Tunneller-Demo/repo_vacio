@@ -228,7 +228,7 @@ function actualizarHojaGasto(): void {
   const { concepto, importe, entre } = leerHojaGasto(formulario);
   const partes =
     importe && entre.length
-      ? partesDeGasto({ id: '', concepto, importe, pagadorId: '', entre }, grupo.participantes.map((p) => p.id))
+      ? partesDeGasto({ importe, entre }, grupo.participantes.map((p) => p.id))
       : new Map<string, number>();
   for (const boton of formulario.querySelectorAll<HTMLElement>('.marcable')) {
     const parte = partes.get(boton.dataset.id!);
@@ -311,7 +311,7 @@ app.addEventListener('click', (evento) => {
       return;
     case 'marcar-todos':
     case 'marcar-ninguno':
-      for (const boton of app.querySelectorAll('.marcable')) boton.setAttribute('aria-pressed', String(objetivo.dataset.accion === 'marcar-todos'));
+      for (const boton of objetivo.closest('form')!.querySelectorAll('.marcable')) boton.setAttribute('aria-pressed', String(objetivo.dataset.accion === 'marcar-todos'));
       actualizarHojaGasto();
       return;
     case 'cerrar-hoja':

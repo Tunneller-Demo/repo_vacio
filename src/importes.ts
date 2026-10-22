@@ -1,14 +1,14 @@
 // Conversión entre el importe que escribe el usuario, los céntimos enteros y el texto que se muestra.
 
-// Solo dígitos, con un separador decimal opcional (coma o punto) y hasta dos decimales.
-const IMPORTE = /^(\d+)(?:[.,](\d{0,2}))?$/;
+// Al menos un dígito, con un separador decimal opcional (coma o punto) y hasta dos decimales.
+const IMPORTE = /^(?=[.,]?\d)(\d*)(?:[.,](\d{0,2}))?$/;
 
-/** Céntimos enteros del importe escrito, o `null` si es cero, negativo o ilegible. */
+/** Céntimos enteros del importe escrito, o `null` si es cero, negativo, ilegible o demasiado grande. */
 export function leerImporte(texto: string): number | null {
   const partes = IMPORTE.exec(texto.trim());
   if (!partes) return null;
   const centimos = Number(partes[1]) * 100 + Number((partes[2] ?? '').padEnd(2, '0'));
-  return centimos > 0 ? centimos : null;
+  return centimos > 0 && Number.isSafeInteger(centimos) ? centimos : null;
 }
 
 /** Los céntimos como texto editable: `1250` → `12,50`. */

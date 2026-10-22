@@ -160,7 +160,7 @@ function gastoValido(
 ): { ok: true; gasto: Gasto } | { ok: false; error: ErrorGrupo } {
   const concepto = datos.concepto.trim();
   if (!concepto) return { ok: false, error: 'concepto-vacio' };
-  if (!Number.isInteger(datos.importe) || datos.importe <= 0) return { ok: false, error: 'importe-no-valido' };
+  if (!Number.isSafeInteger(datos.importe) || datos.importe <= 0) return { ok: false, error: 'importe-no-valido' };
   if (!datos.entre.length) return { ok: false, error: 'sin-marcados' };
   const ids = grupo?.participantes.map((p) => p.id) ?? [];
   if (!grupo || !ids.includes(datos.pagadorId) || datos.entre.some((m) => !ids.includes(m))) {
@@ -177,9 +177,15 @@ export function anadirGasto(documento: Documento, grupoId: string, datos: DatosG
   return { ok: true, documento: conGrupo(documento, grupoId, (g) => ({ ...g, gastos: [...g.gastos, gasto] })), gasto };
 }
 
-export function editarGasto(documento: Documento, grupoId: string, gastoId: string, datos: DatosGasto): ResultadoGasto {
+// El Grupo indicado, solo si existe y tiene ese Gasto.
+function grupoConGasto(documento: Documento, grupoId: string, gastoId: string): Grupo | undefined {
   const grupo = documento.grupos.find((g) => g.id === grupoId);
-  if (!grupo?.gastos.some((g) => g.id === gastoId)) return { ok: false, error: 'no-encontrado' };
+  return grupo?.gastos.some((g) => g.id === gastoId) ? grupo : undefined;
+}
+
+export function editarGasto(documento: Documento, grupoId: string, gastoId: string, datos: DatosGasto): ResultadoGasto {
+  const grupo = grupoConGasto(documento, grupoId, gastoId);
+  if (!grupo) return { ok: false, error: 'no-encontrado' };
   const validado = gastoValido(grupo, gastoId, datos);
   if (!validado.ok) return validado;
   const { gasto } = validado;
@@ -191,7 +197,6 @@ export function editarGasto(documento: Documento, grupoId: string, gastoId: stri
 }
 
 export function borrarGasto(documento: Documento, grupoId: string, gastoId: string): ResultadoBorrarGasto {
-  const grupo = documento.grupos.find((g) => g.id === grupoId);
-  if (!grupo?.gastos.some((g) => g.id === gastoId)) return { ok: false, error: 'no-encontrado' };
+  if (!grupoConGasto(documento, grupoId, gastoId)) return { ok: false, error: 'no-encontrado' };
   return { ok: true, documento: conGrupo(documento, grupoId, (g) => ({ ...g, gastos: g.gastos.filter((x) => x.id !== gastoId) })) };
 }

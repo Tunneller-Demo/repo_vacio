@@ -8,7 +8,7 @@ import type { Gasto } from './grupos';
  * A partes iguales; los céntimos sobrantes van, uno a uno, a los primeros marcados
  * según el orden del Grupo. La suma de las partes es siempre el importe.
  */
-export function partesDeGasto(gasto: Gasto, ordenDelGrupo: string[]): Map<string, number> {
+export function partesDeGasto(gasto: Pick<Gasto, 'importe' | 'entre'>, ordenDelGrupo: string[]): Map<string, number> {
   const marcados = ordenDelGrupo.filter((id) => gasto.entre.includes(id));
   const base = Math.floor(gasto.importe / marcados.length);
   const sobrantes = gasto.importe % marcados.length;
