@@ -7,6 +7,7 @@ import {
   renombrarParticipante,
   sePuedeBorrarParticipante,
   type Documento,
+  type ErrorGrupo,
   type Grupo,
 } from './grupos';
 
@@ -203,7 +204,7 @@ app.addEventListener('submit', (evento) => {
   const nombre = String(datos.get('nombre') ?? '');
   const grupo = grupoAbierto();
 
-  let resultado: { ok: true; documento: Documento } | { ok: false } | undefined;
+  let resultado: { ok: true; documento: Documento } | { ok: false; error: ErrorGrupo } | undefined;
   if (hoja?.tipo === 'crear-grupo') {
     resultado = crearGrupo(
       documento,
@@ -216,13 +217,13 @@ app.addEventListener('submit', (evento) => {
       : anadirParticipante(documento, grupo.id, { nombre }, { id: crypto.randomUUID() });
   }
   if (!resultado) return;
-  // Con el Grupo y el Participante a la vista, el único error posible es el nombre vacío.
-  if (!resultado.ok) {
+  if (!resultado.ok && resultado.error === 'nombre-vacio') {
     formulario.querySelector<HTMLElement>('#error-nombre')!.hidden = false;
     formulario.querySelector<HTMLInputElement>('input[name="nombre"]')!.focus();
     return;
   }
-  documento = resultado.documento;
+  // Si el Grupo o el Participante ya no existen, se cierra la hoja sin cambios.
+  if (resultado.ok) documento = resultado.documento;
   hoja = null;
   pintar();
 });

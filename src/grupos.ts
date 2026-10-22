@@ -67,11 +67,17 @@ export type ResultadoParticipante =
   | { ok: true; documento: Documento; participante: Participante }
   | { ok: false; error: ErrorGrupo };
 
-export type ResultadoBorrar = { ok: true; documento: Documento } | { ok: false; error: ErrorGrupo };
+export type ResultadoBorrarParticipante ={ ok: true; documento: Documento } | { ok: false; error: ErrorGrupo };
 
 // Devuelve el documento con el Grupo indicado sustituido por `cambiar(grupo)`.
 function conGrupo(documento: Documento, grupoId: string, cambiar: (grupo: Grupo) => Grupo): Documento {
   return { ...documento, grupos: documento.grupos.map((g) => (g.id === grupoId ? cambiar(g) : g)) };
+}
+
+// El Grupo indicado, solo si existe y tiene ese Participante.
+function grupoConParticipante(documento: Documento, grupoId: string, participanteId: string): Grupo | undefined {
+  const grupo = documento.grupos.find((g) => g.id === grupoId);
+  return grupo?.participantes.some((p) => p.id === participanteId) ? grupo : undefined;
 }
 
 /** Un Participante que aparece en algún Gasto, como pagador o como marcado, no se puede borrar. */
@@ -105,8 +111,7 @@ export function renombrarParticipante(
 ): ResultadoParticipante {
   const nombre = nombreNuevo.trim();
   if (!nombre) return { ok: false, error: 'nombre-vacio' };
-  const grupo = documento.grupos.find((g) => g.id === grupoId);
-  if (!grupo?.participantes.some((p) => p.id === participanteId)) return { ok: false, error: 'no-encontrado' };
+  if (!grupoConParticipante(documento, grupoId, participanteId)) return { ok: false, error: 'no-encontrado' };
 
   const participante: Participante = { id: participanteId, nombre };
   return {
@@ -119,9 +124,9 @@ export function renombrarParticipante(
   };
 }
 
-export function borrarParticipante(documento: Documento, grupoId: string, participanteId: string): ResultadoBorrar {
-  const grupo = documento.grupos.find((g) => g.id === grupoId);
-  if (!grupo?.participantes.some((p) => p.id === participanteId)) return { ok: false, error: 'no-encontrado' };
+export function borrarParticipante(documento: Documento, grupoId: string, participanteId: string): ResultadoBorrarParticipante {
+  const grupo = grupoConParticipante(documento, grupoId, participanteId);
+  if (!grupo) return { ok: false, error: 'no-encontrado' };
   if (!sePuedeBorrarParticipante(grupo, participanteId)) return { ok: false, error: 'participante-en-gastos' };
 
   return {
