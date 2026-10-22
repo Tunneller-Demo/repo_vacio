@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  anadirGasto,
   anadirParticipante,
+  borrarGasto,
   borrarParticipante,
   crearGrupo,
   documentoVacio,
+  editarGasto,
   renombrarParticipante,
   sePuedeBorrarParticipante,
   type Documento,
@@ -27,9 +30,10 @@ function conParticipantes(documento: Documento, grupoId: string, nombres: [id: s
   }, documento);
 }
 
-// Los Gastos aún no tienen operaciones propias: se colocan directamente en el Grupo.
-function conGasto(documento: Documento, grupoId: string, gasto: Gasto): Documento {
-  return { ...documento, grupos: documento.grupos.map((g) => (g.id === grupoId ? { ...g, gastos: [...g.gastos, gasto] } : g)) };
+function conGasto(documento: Documento, grupoId: string, { id, ...datos }: Gasto): Documento {
+  const resultado = anadirGasto(documento, grupoId, datos, { id });
+  if (!resultado.ok) throw new Error(`no se añadió ${datos.concepto}`);
+  return resultado.documento;
 }
 
 const grupo = (documento: Documento, id: string) => documento.grupos.find((g) => g.id === id)!;
@@ -221,5 +225,137 @@ describe('sePuedeBorrarParticipante', () => {
 
   it('se puede borrar a quien no aparece en ningún Gasto', () => {
     expect(sePuedeBorrarParticipante(grupoConGasto(), 'c')).toBe(true);
+  });
+});
+
+describe('anadirGasto', () => {
+  const documentoConTres = () => conParticipantes(documentoConDosGrupos(), 'g1', [['a', 'Ana'], ['b', 'Bruno'], ['c', 'Carla']]);
+  const cena = { concepto: 'Cena', importe: 6000, pagadorId: 'a', entre: ['a', 'b', 'c'] };
+
+  it('añade el Gasto al final del Grupo', () => {
+    const resultado = anadirGasto(documentoConTres(), 'g1', cena, { id: 'x1' });
+
+    expect(resultado.ok && resultado.gasto).toEqual({ id: 'x1', ...cena });
+    expect(resultado.ok && grupo(resultado.documento, 'g1').gastos).toEqual([{ id: 'x1', ...cena }]);
+  });
+
+  it('quita los espacios de los extremos del concepto', () => {
+    const resultado = anadirGasto(documentoConTres(), 'g1', { ...cena, concepto: '  Cena ' }, { id: 'x1' });
+
+    expect(resultado.ok && resultado.gasto.concepto).toBe('Cena');
+  });
+
+  it('guarda los marcados en el orden del Grupo', () => {
+    const resultado = anadirGasto(documentoConTres(), 'g1', { ...cena, entre: ['c', 'a'] }, { id: 'x1' });
+
+    expect(resultado.ok && resultado.gasto.entre).toEqual(['a', 'c']);
+  });
+
+  it('quien paga puede no estar marcado', () => {
+    const resultado = anadirGasto(documentoConTres(), 'g1', { ...cena, pagadorId: 'a', entre: ['b'] }, { id: 'x1' });
+
+    expect(resultado.ok).toBe(true);
+  });
+
+  it('no cambia el documento original', () => {
+    const documento = documentoConTres();
+    anadirGasto(documento, 'g1', cena, { id: 'x1' });
+
+    expect(documento).toEqual(documentoConTres());
+  });
+
+  it.each(['', '   '])('rechaza un concepto vacío (%j)', (concepto) => {
+    expect(anadirGasto(documentoConTres(), 'g1', { ...cena, concepto }, { id: 'x1' })).toEqual({ ok: false, error: 'concepto-vacio' });
+  });
+
+  it.each([0, -500, 12.5, Number.NaN])('rechaza un importe que no es un entero positivo de céntimos (%s)', (importe) => {
+    expect(anadirGasto(documentoConTres(), 'g1', { ...cena, importe }, { id: 'x1' })).toEqual({ ok: false, error: 'importe-no-valido' });
+  });
+
+  it('rechaza un Gasto sin marcados', () => {
+    expect(anadirGasto(documentoConTres(), 'g1', { ...cena, entre: [] }, { id: 'x1' })).toEqual({ ok: false, error: 'sin-marcados' });
+  });
+
+  it('rechaza un pagador que no es del Grupo', () => {
+    expect(anadirGasto(documentoConTres(), 'g1', { ...cena, pagadorId: 'z' }, { id: 'x1' })).toEqual({ ok: false, error: 'no-encontrado' });
+  });
+
+  it('rechaza un marcado que no es del Grupo', () => {
+    expect(anadirGasto(documentoConTres(), 'g1', { ...cena, entre: ['a', 'z'] }, { id: 'x1' })).toEqual({ ok: false, error: 'no-encontrado' });
+  });
+
+  it('rechaza un Grupo que no existe', () => {
+    expect(anadirGasto(documentoConTres(), 'g9', cena, { id: 'x1' })).toEqual({ ok: false, error: 'no-encontrado' });
+  });
+
+  it('tras usar un Participante en un Gasto, ya no se puede borrar', () => {
+    const resultado = anadirGasto(documentoConTres(), 'g1', { ...cena, entre: ['b'] }, { id: 'x1' });
+    if (!resultado.ok) throw new Error('no se añadió el Gasto');
+
+    expect(sePuedeBorrarParticipante(grupo(resultado.documento, 'g1'), 'b')).toBe(false);
+    expect(sePuedeBorrarParticipante(grupo(resultado.documento, 'g1'), 'c')).toBe(true);
+  });
+});
+
+describe('editarGasto', () => {
+  const documentoConCena = () =>
+    conGasto(conParticipantes(documentoConDosGrupos(), 'g1', [['a', 'Ana'], ['b', 'Bruno'], ['c', 'Carla']]), 'g1', {
+      id: 'x1', concepto: 'Cena', importe: 6000, pagadorId: 'a', entre: ['a', 'b', 'c'],
+    });
+  const cambios = { concepto: 'Cena y copas', importe: 7500, pagadorId: 'b', entre: ['c', 'b'] };
+
+  it('cambia los datos del Gasto y conserva su identificador', () => {
+    const resultado = editarGasto(documentoConCena(), 'g1', 'x1', cambios);
+
+    expect(resultado.ok && grupo(resultado.documento, 'g1').gastos).toEqual([
+      { id: 'x1', concepto: 'Cena y copas', importe: 7500, pagadorId: 'b', entre: ['b', 'c'] },
+    ]);
+  });
+
+  it('no cambia el documento original', () => {
+    const documento = documentoConCena();
+    editarGasto(documento, 'g1', 'x1', cambios);
+
+    expect(documento).toEqual(documentoConCena());
+  });
+
+  it('aplica las mismas reglas que al añadir', () => {
+    const documento = documentoConCena();
+
+    expect(editarGasto(documento, 'g1', 'x1', { ...cambios, concepto: ' ' })).toEqual({ ok: false, error: 'concepto-vacio' });
+    expect(editarGasto(documento, 'g1', 'x1', { ...cambios, importe: 0 })).toEqual({ ok: false, error: 'importe-no-valido' });
+    expect(editarGasto(documento, 'g1', 'x1', { ...cambios, entre: [] })).toEqual({ ok: false, error: 'sin-marcados' });
+  });
+
+  it('rechaza un Gasto que no existe', () => {
+    expect(editarGasto(documentoConCena(), 'g1', 'x9', cambios)).toEqual({ ok: false, error: 'no-encontrado' });
+  });
+});
+
+describe('borrarGasto', () => {
+  const documentoConDos = () =>
+    conGasto(
+      conGasto(conParticipantes(documentoConDosGrupos(), 'g1', [['a', 'Ana'], ['b', 'Bruno']]), 'g1', {
+        id: 'x1', concepto: 'Cena', importe: 6000, pagadorId: 'a', entre: ['a', 'b'],
+      }),
+      'g1',
+      { id: 'x2', concepto: 'Taxi', importe: 1500, pagadorId: 'b', entre: ['a', 'b'] },
+    );
+
+  it('quita el Gasto del Grupo', () => {
+    const resultado = borrarGasto(documentoConDos(), 'g1', 'x1');
+
+    expect(resultado.ok && grupo(resultado.documento, 'g1').gastos.map((g) => g.id)).toEqual(['x2']);
+  });
+
+  it('no cambia el documento original', () => {
+    const documento = documentoConDos();
+    borrarGasto(documento, 'g1', 'x1');
+
+    expect(documento).toEqual(documentoConDos());
+  });
+
+  it('rechaza un Gasto que no existe', () => {
+    expect(borrarGasto(documentoConDos(), 'g1', 'x9')).toEqual({ ok: false, error: 'no-encontrado' });
   });
 });

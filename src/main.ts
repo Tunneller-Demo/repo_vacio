@@ -1,25 +1,34 @@
 import './estilos.css';
 import {
+  anadirGasto,
   anadirParticipante,
+  borrarGasto,
   borrarParticipante,
   crearGrupo,
   documentoVacio,
+  editarGasto,
   renombrarParticipante,
   sePuedeBorrarParticipante,
   type Documento,
   type ErrorGrupo,
+  type Gasto,
   type Grupo,
 } from './grupos';
+import { formatearImporte, importeParaEditar, leerImporte } from './importes';
+import { partesDeGasto } from './reparto';
 
 type Pestana = 'gastos' | 'saldos' | 'participantes';
 
 type Pantalla = { tipo: 'grupos' } | { tipo: 'grupo'; grupoId: string; pestana: Pestana };
 
-// La hoja modal abierta, si hay alguna. `participanteId: null` es un Participante nuevo.
-type Hoja = { tipo: 'crear-grupo' } | { tipo: 'participante'; participanteId: string | null };
+// La hoja modal abierta, si hay alguna. Un id `null` es un Participante o un Gasto nuevo.
+type Hoja =
+  | { tipo: 'crear-grupo' }
+  | { tipo: 'participante'; participanteId: string | null }
+  | { tipo: 'gasto'; gastoId: string | null };
 
 const PESTANAS: Record<Pestana, { titulo: string; vacio: string }> = {
-  gastos: { titulo: 'Gastos', vacio: 'Sin Gastos todavía.' },
+  gastos: { titulo: 'Gastos', vacio: 'Sin Gastos todavía. Pulsa ＋ para añadir.' },
   saldos: { titulo: 'Saldos', vacio: 'Sin Saldos todavía.' },
   participantes: { titulo: 'Participantes', vacio: 'Sin Participantes todavía. Pulsa ＋ para añadir.' },
 };
@@ -62,6 +71,36 @@ function pintarGrupos(): string {
   return `<header class="cabecera"><h1>Grupos</h1></header>${lista}`;
 }
 
+const nombreDe = (grupo: Grupo, participanteId: string) => grupo.participantes.find((p) => p.id === participanteId)?.nombre ?? '?';
+
+function entreQuienes(grupo: Grupo, gasto: Gasto): string {
+  if (gasto.entre.length === grupo.participantes.length) return 'entre todos';
+  return `entre ${gasto.entre.map((id) => nombreDe(grupo, id)).join(', ')}`;
+}
+
+function pintarGastos(grupo: Grupo): string {
+  // Sin Participantes no hay a quién apuntar un Gasto: primero hay que añadirlos.
+  if (!grupo.participantes.length) {
+    return `<div class="vacio" role="tabpanel"><p class="apagado">Para apuntar Gastos, primero añade Participantes.</p>
+      <button type="button" class="primario" data-accion="pestana" data-pestana="participantes">Ir a Participantes</button></div>`;
+  }
+  // El más reciente arriba.
+  const lista = grupo.gastos.length
+    ? `<ul class="lista">${[...grupo.gastos]
+        .reverse()
+        .map(
+          (g) => `<li><button type="button" class="gasto" data-accion="editar-gasto" data-id="${escapar(g.id)}">
+            <span><span class="concepto">${escapar(g.concepto)}</span>
+              <span class="apagado detalle">Pagó ${escapar(nombreDe(grupo, g.pagadorId))} · ${escapar(entreQuienes(grupo, g))}</span></span>
+            <span class="importe">${formatearImporte(g.importe, grupo.moneda)}</span>
+          </button></li>`,
+        )
+        .join('')}</ul>`
+    : `<div class="vacio apagado">${PESTANAS.gastos.vacio}</div>`;
+  return `<div role="tabpanel">${lista}</div>
+    <button type="button" class="flotante" data-accion="nuevo-gasto" aria-label="Nuevo Gasto">＋</button>`;
+}
+
 function pintarParticipantes(grupo: Grupo): string {
   const lista = grupo.participantes.length
     ? `<ul class="lista">${grupo.participantes
@@ -85,7 +124,9 @@ function pintarGrupo(grupo: Grupo, pestana: Pestana): string {
   const panel =
     pestana === 'participantes'
       ? pintarParticipantes(grupo)
-      : `<div class="vacio apagado" role="tabpanel">${PESTANAS[pestana].vacio}</div>`;
+      : pestana === 'gastos'
+        ? pintarGastos(grupo)
+        : `<div class="vacio apagado" role="tabpanel">${PESTANAS[pestana].vacio}</div>`;
   return `<header class="cabecera">
       <button type="button" data-accion="volver">‹ Grupos</button>
       <h1>${escapar(grupo.nombre)}</h1>
@@ -137,14 +178,88 @@ function pintarHojaParticipante(grupo: Grupo, participanteId: string | null): st
   );
 }
 
+// La parte de cada marcado («no entra» si no lo está) se rellena en vivo con `actualizarHojaGasto`.
+function pintarHojaGasto(grupo: Grupo, gastoId: string | null): string {
+  const gasto = grupo.gastos.find((g) => g.id === gastoId);
+  const pagadorId = gasto?.pagadorId ?? grupo.participantes[0]?.id;
+  const pagadores = grupo.participantes
+    .map(
+      (p) =>
+        `<label class="opcion"><input type="radio" name="pagador" value="${escapar(p.id)}"${p.id === pagadorId ? ' checked' : ''} />${escapar(p.nombre)}</label>`,
+    )
+    .join('');
+  const marcables = grupo.participantes
+    .map(
+      (p) => `<button type="button" class="marcable" data-accion="marcar" data-id="${escapar(p.id)}" aria-pressed="${!gasto || gasto.entre.includes(p.id)}">
+          <span>${escapar(p.nombre)}</span><span class="parte"></span></button>`,
+    )
+    .join('');
+  const importe = gasto ? importeParaEditar(gasto.importe) : '';
+  return pintarHoja(
+    gasto ? 'Editar Gasto' : 'Nuevo Gasto',
+    `<label class="campo">Importe (${escapar(grupo.moneda)})<input name="importe" inputmode="decimal" placeholder="0,00" autocomplete="off" value="${importe}" /></label>
+      <label class="campo">Concepto<input name="concepto" placeholder="Cena, gasolina…" autocomplete="off" value="${escapar(gasto?.concepto ?? '')}" /></label>
+      <fieldset class="campo"><legend>Lo pagó</legend><div class="opciones">${pagadores}</div></fieldset>
+      <fieldset class="campo"><legend>Entre quiénes <span class="apagado">(a partes iguales)</span></legend>
+        <div class="atajos"><button type="button" data-accion="marcar-todos">Todos</button><button type="button" data-accion="marcar-ninguno">Ninguno</button></div>
+        <div class="marcables">${marcables}</div></fieldset>`,
+    `<button type="submit" class="primario">Guardar</button>
+      <button type="button" data-accion="cerrar-hoja">Cancelar</button>${
+        gasto ? '<button type="button" class="peligro" data-accion="borrar-gasto">Borrar</button>' : ''
+      }`,
+  );
+}
+
+// Lo que hay escrito y marcado ahora mismo en la hoja de Gasto; el importe, `null` si no es válido.
+function leerHojaGasto(formulario: HTMLFormElement) {
+  return {
+    concepto: formulario.querySelector<HTMLInputElement>('input[name="concepto"]')!.value,
+    importe: leerImporte(formulario.querySelector<HTMLInputElement>('input[name="importe"]')!.value),
+    pagadorId: String(new FormData(formulario).get('pagador') ?? ''),
+    entre: [...formulario.querySelectorAll<HTMLElement>('.marcable[aria-pressed="true"]')].map((b) => b.dataset.id!),
+  };
+}
+
+// Recalcula la parte de cada Participante y si se puede guardar, sin volver a pintar la hoja.
+function actualizarHojaGasto(): void {
+  const grupo = grupoAbierto();
+  const formulario = app.querySelector<HTMLFormElement>('.hoja');
+  if (hoja?.tipo !== 'gasto' || !grupo || !formulario) return;
+  const { concepto, importe, entre } = leerHojaGasto(formulario);
+  const partes =
+    importe && entre.length
+      ? partesDeGasto({ id: '', concepto, importe, pagadorId: '', entre }, grupo.participantes.map((p) => p.id))
+      : new Map<string, number>();
+  for (const boton of formulario.querySelectorAll<HTMLElement>('.marcable')) {
+    const parte = partes.get(boton.dataset.id!);
+    const texto = boton.getAttribute('aria-pressed') !== 'true' ? 'no entra' : parte === undefined ? '—' : formatearImporte(parte, grupo.moneda);
+    boton.querySelector('.parte')!.textContent = texto;
+  }
+  formulario.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled = !concepto.trim() || !importe || !entre.length;
+}
+
 function pintar(): void {
   const grupo = grupoAbierto();
   const contenido = pantalla.tipo === 'grupo' && grupo ? pintarGrupo(grupo, pantalla.pestana) : pintarGrupos();
   let modal = '';
   if (hoja?.tipo === 'crear-grupo') modal = pintarHojaCrearGrupo();
   else if (hoja?.tipo === 'participante' && grupo) modal = pintarHojaParticipante(grupo, hoja.participanteId);
+  else if (hoja?.tipo === 'gasto' && grupo) modal = pintarHojaGasto(grupo, hoja.gastoId);
   app.innerHTML = `<main class="pantalla">${contenido}</main>${modal}`;
-  app.querySelector<HTMLInputElement>('input[name="nombre"]')?.focus();
+  app.querySelector<HTMLInputElement>('.hoja input')?.focus();
+  actualizarHojaGasto();
+}
+
+function borrarGastoAbierto(): boolean {
+  const grupo = grupoAbierto();
+  const gastoId = hoja?.tipo === 'gasto' ? hoja.gastoId : null;
+  const gasto = grupo?.gastos.find((g) => g.id === gastoId);
+  if (!grupo || !gasto) return false;
+  if (!confirm(`¿Borrar el Gasto «${gasto.concepto}» (${formatearImporte(gasto.importe, grupo.moneda)})?`)) return false;
+  const resultado = borrarGasto(documento, grupo.id, gasto.id);
+  if (!resultado.ok) return false;
+  documento = resultado.documento;
+  return true;
 }
 
 function borrarParticipanteAbierto(): boolean {
@@ -179,6 +294,26 @@ app.addEventListener('click', (evento) => {
       if (!borrarParticipanteAbierto()) return;
       hoja = null;
       break;
+    case 'nuevo-gasto':
+      hoja = { tipo: 'gasto', gastoId: null };
+      break;
+    case 'editar-gasto':
+      hoja = { tipo: 'gasto', gastoId: objetivo.dataset.id! };
+      break;
+    case 'borrar-gasto':
+      if (!borrarGastoAbierto()) return;
+      hoja = null;
+      break;
+    // Marcar y desmarcar no vuelve a pintar la hoja, para no perder lo escrito.
+    case 'marcar':
+      objetivo.setAttribute('aria-pressed', String(objetivo.getAttribute('aria-pressed') !== 'true'));
+      actualizarHojaGasto();
+      return;
+    case 'marcar-todos':
+    case 'marcar-ninguno':
+      for (const boton of app.querySelectorAll('.marcable')) boton.setAttribute('aria-pressed', String(objetivo.dataset.accion === 'marcar-todos'));
+      actualizarHojaGasto();
+      return;
     case 'cerrar-hoja':
       hoja = null;
       break;
@@ -215,6 +350,12 @@ app.addEventListener('submit', (evento) => {
     resultado = hoja.participanteId
       ? renombrarParticipante(documento, grupo.id, hoja.participanteId, nombre)
       : anadirParticipante(documento, grupo.id, { nombre }, { id: crypto.randomUUID() });
+  } else if (hoja?.tipo === 'gasto' && grupo) {
+    const leido = leerHojaGasto(formulario);
+    const gasto = { ...leido, importe: leido.importe ?? 0 };
+    resultado = hoja.gastoId
+      ? editarGasto(documento, grupo.id, hoja.gastoId, gasto)
+      : anadirGasto(documento, grupo.id, gasto, { id: crypto.randomUUID() });
   }
   if (!resultado) return;
   if (!resultado.ok && resultado.error === 'nombre-vacio') {
@@ -222,17 +363,20 @@ app.addEventListener('submit', (evento) => {
     formulario.querySelector<HTMLInputElement>('input[name="nombre"]')!.focus();
     return;
   }
-  // Si el Grupo o el Participante ya no existen, se cierra la hoja sin cambios.
+  // Los demás Gastos inválidos ya tienen Guardar desactivado: la hoja sigue abierta.
+  if (!resultado.ok && resultado.error !== 'no-encontrado') return;
+  // Si el Grupo, el Participante o el Gasto ya no existen, se cierra la hoja sin cambios.
   if (resultado.ok) documento = resultado.documento;
   hoja = null;
   pintar();
 });
 
-// El aviso de nombre vacío desaparece en cuanto se escribe algo.
+// El aviso de nombre vacío desaparece en cuanto se escribe algo; la hoja de Gasto se recalcula.
 app.addEventListener('input', (evento) => {
   if ((evento.target as HTMLElement).matches('input[name="nombre"]')) {
     app.querySelector<HTMLElement>('#error-nombre')!.hidden = true;
   }
+  actualizarHojaGasto();
 });
 
 document.addEventListener('keydown', (evento) => {

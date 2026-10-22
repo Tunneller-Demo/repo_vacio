@@ -34,7 +34,13 @@ export interface Documento {
   ultimoGrupoAbiertoId: string | null;
 }
 
-export type ErrorGrupo = 'nombre-vacio' | 'no-encontrado' | 'participante-en-gastos';
+export type ErrorGrupo =
+  | 'nombre-vacio'
+  | 'no-encontrado'
+  | 'participante-en-gastos'
+  | 'concepto-vacio'
+  | 'importe-no-valido'
+  | 'sin-marcados';
 
 export type ResultadoCrearGrupo =
   | { ok: true; documento: Documento; grupo: Grupo }
@@ -136,4 +142,56 @@ export function borrarParticipante(documento: Documento, grupoId: string, partic
       participantes: g.participantes.filter((p) => p.id !== participanteId),
     })),
   };
+}
+
+/** Lo que se escribe en el formulario de un Gasto; el importe ya en céntimos. */
+export type DatosGasto = Omit<Gasto, 'id'>;
+
+export type ResultadoGasto = { ok: true; documento: Documento; gasto: Gasto } | { ok: false; error: ErrorGrupo };
+
+export type ResultadoBorrarGasto = { ok: true; documento: Documento } | { ok: false; error: ErrorGrupo };
+
+// Comprueba las reglas de un Gasto y lo devuelve normalizado: concepto sin espacios en los
+// extremos y marcados en el orden del Grupo. Quien paga puede no estar entre los marcados.
+function gastoValido(
+  grupo: Grupo | undefined,
+  id: string,
+  datos: DatosGasto,
+): { ok: true; gasto: Gasto } | { ok: false; error: ErrorGrupo } {
+  const concepto = datos.concepto.trim();
+  if (!concepto) return { ok: false, error: 'concepto-vacio' };
+  if (!Number.isInteger(datos.importe) || datos.importe <= 0) return { ok: false, error: 'importe-no-valido' };
+  if (!datos.entre.length) return { ok: false, error: 'sin-marcados' };
+  const ids = grupo?.participantes.map((p) => p.id) ?? [];
+  if (!grupo || !ids.includes(datos.pagadorId) || datos.entre.some((m) => !ids.includes(m))) {
+    return { ok: false, error: 'no-encontrado' };
+  }
+  const entre = ids.filter((m) => datos.entre.includes(m));
+  return { ok: true, gasto: { id, concepto, importe: datos.importe, pagadorId: datos.pagadorId, entre } };
+}
+
+export function anadirGasto(documento: Documento, grupoId: string, datos: DatosGasto, contexto: { id: string }): ResultadoGasto {
+  const validado = gastoValido(documento.grupos.find((g) => g.id === grupoId), contexto.id, datos);
+  if (!validado.ok) return validado;
+  const { gasto } = validado;
+  return { ok: true, documento: conGrupo(documento, grupoId, (g) => ({ ...g, gastos: [...g.gastos, gasto] })), gasto };
+}
+
+export function editarGasto(documento: Documento, grupoId: string, gastoId: string, datos: DatosGasto): ResultadoGasto {
+  const grupo = documento.grupos.find((g) => g.id === grupoId);
+  if (!grupo?.gastos.some((g) => g.id === gastoId)) return { ok: false, error: 'no-encontrado' };
+  const validado = gastoValido(grupo, gastoId, datos);
+  if (!validado.ok) return validado;
+  const { gasto } = validado;
+  return {
+    ok: true,
+    documento: conGrupo(documento, grupoId, (g) => ({ ...g, gastos: g.gastos.map((x) => (x.id === gastoId ? gasto : x)) })),
+    gasto,
+  };
+}
+
+export function borrarGasto(documento: Documento, grupoId: string, gastoId: string): ResultadoBorrarGasto {
+  const grupo = documento.grupos.find((g) => g.id === grupoId);
+  if (!grupo?.gastos.some((g) => g.id === gastoId)) return { ok: false, error: 'no-encontrado' };
+  return { ok: true, documento: conGrupo(documento, grupoId, (g) => ({ ...g, gastos: g.gastos.filter((x) => x.id !== gastoId) })) };
 }

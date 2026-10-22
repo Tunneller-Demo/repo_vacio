@@ -34,3 +34,18 @@ input, select { font: inherit; padding: 6px 8px; border: 1px solid #c9ced6; bord
 button.peligro { margin-left: auto; color: #b42318; border-color: #f0b4ae; }
 button:disabled { cursor: not-allowed; opacity: .5; }
 .nota { font-size: 13px; margin: -4px 0 12px; }
+
+.hoja { max-height: 100vh; overflow-y: auto; }
+fieldset.campo { border: 0; padding: 0; min-width: 0; }
+fieldset.campo legend { padding: 0; margin-bottom: 6px; }
+.opciones, .marcables, .atajos { display: flex; flex-wrap: wrap; gap: 6px; }
+.atajos { margin-bottom: 8px; }
+.opcion { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1px solid #c9ced6; border-radius: 16px; }
+.opcion:has(input:checked) { border-color: #2b6cb0; background: #ebf2fa; }
+.marcable { display: flex; flex-direction: column; align-items: flex-start; min-width: 96px; }
+.marcable[aria-pressed="true"] { border-color: #2b6cb0; background: #ebf2fa; }
+.marcable .parte { font-size: 13px; color: #6b7380; }
+.lista button.gasto { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.gasto .concepto { font-weight: 600; }
+.gasto .detalle { display: block; font-size: 13px; }
+.gasto .importe { font-weight: 700; white-space: nowrap; }
